@@ -226,6 +226,53 @@ final class ParameterFormatterTests: XCTestCase {
             ParameterFormatter.string(for: 20, display: .enumerated(ParameterMap.compRatioNames)),
             "INF:1")
     }
+
+    func testParseInvertsFormatting() {
+        // Round-trips: parsing the formatted string recovers the raw value.
+        let cases: [(Int, ParameterDisplay)] = [
+            (12345, .raw(unit: nil)),
+            (-9000, .signed(unit: nil)),
+            (120, .raw(unit: "BPM")),
+            (-15, .scaled(divisor: 10, unit: "dB", signed: true)),
+            (13, .scaled(divisor: 100, unit: nil, signed: true)),
+            (49, .pan),
+            (79, .pan),
+            (64, .pan),
+            (40, .centerEdge),
+            (4200, .bpmSyncTime),
+        ]
+        for (value, display) in cases {
+            let text = ParameterFormatter.string(for: value, display: display)
+            XCTAssertEqual(ParameterFormatter.parse(text, display: display), value,
+                           "round trip failed for \(text)")
+        }
+        // levelWithMode parses only the level portion (mode is the popup's).
+        XCTAssertEqual(ParameterFormatter.parse("100 P+", display: .levelWithMode(modes: ["--", "P+", "P-"])), 100)
+        // Bare-number tolerance and rejection of junk.
+        XCTAssertEqual(ParameterFormatter.parse("-2048", display: .raw(unit: nil)), -2048)
+        XCTAssertNil(ParameterFormatter.parse("nope", display: .raw(unit: nil)))
+        XCTAssertNil(ParameterFormatter.parse("", display: .signed(unit: nil)))
+        // Controls with their own value don't accept typed input.
+        XCTAssertNil(ParameterFormatter.parse("On", display: .onOff))
+    }
+
+    func testUnitSplitsFromValueText() {
+        // Fixed units render as a separate label; the field holds only the value.
+        XCTAssertEqual(ParameterFormatter.unit(for: .raw(unit: "Hz")), "Hz")
+        XCTAssertEqual(ParameterFormatter.valueText(for: 123, display: .raw(unit: "Hz")), "123")
+        XCTAssertEqual(
+            ParameterFormatter.valueText(for: -15, display: .scaled(divisor: 10, unit: "dB", signed: true)),
+            "-1.5")
+        // Unitless and context-unit types keep everything in the field.
+        XCTAssertNil(ParameterFormatter.unit(for: .raw(unit: nil)))
+        XCTAssertNil(ParameterFormatter.unit(for: .bpmSyncTime))
+        XCTAssertEqual(ParameterFormatter.valueText(for: 64, display: .pan), "C00")
+        XCTAssertEqual(ParameterFormatter.valueText(for: 4200, display: .bpmSyncTime), "420.0 ms")
+        // The field text (unit stripped) still parses back to the raw value.
+        let display = ParameterDisplay.raw(unit: "Hz")
+        let field = ParameterFormatter.valueText(for: 123, display: display)
+        XCTAssertEqual(ParameterFormatter.parse(field, display: display), 123)
+    }
 }
 
 final class MockRangeValidationTests: XCTestCase {

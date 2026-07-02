@@ -12,6 +12,18 @@ final class ParameterRowView: NSView {
 
     private let nameLabel = NSTextField(labelWithString: "")
     private let valueLabel = NSTextField(labelWithString: "")
+    private let unitLabel = NSTextField(labelWithString: "")
+    private var valueStack: NSStackView?
+
+    /// Whether the value readout accepts typed input. Controls that already own
+    /// their value (switch, enum popup) don't; slider-backed rows do, so wide
+    /// ranges can be set precisely without fighting the slider's resolution.
+    private var valueIsTypeable: Bool {
+        switch descriptor.display {
+        case .onOff, .enumerated: return false
+        default: return true
+        }
+    }
     private var slider: NSSlider?
     private var modePopup: NSPopUpButton?  // levelWithMode mode selector
     private var enumPopup: NSPopUpButton?
@@ -45,10 +57,41 @@ final class ParameterRowView: NSView {
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         valueLabel.alignment = .right
         valueLabel.lineBreakMode = .byClipping
+        valueLabel.setContentHuggingPriority(.init(1), for: .horizontal)
+        if valueIsTypeable {
+            valueLabel.isEditable = true
+            valueLabel.isSelectable = true
+            valueLabel.isBordered = true
+            valueLabel.bezelStyle = .roundedBezel
+            valueLabel.drawsBackground = true
+            valueLabel.controlSize = .small
+            valueLabel.focusRingType = .default
+            valueLabel.target = self
+            valueLabel.action = #selector(valueCommitted)
+        }
+
+        // Fixed units live in their own static label so the field holds only the
+        // value (e.g. "123" | "Hz"). Empty when the parameter has no fixed unit.
+        unitLabel.stringValue = ParameterFormatter.unit(for: descriptor.display) ?? ""
+        unitLabel.font = .systemFont(ofSize: 11)
+        unitLabel.textColor = .secondaryLabelColor
+        unitLabel.alignment = .left
+        unitLabel.lineBreakMode = .byClipping
+        unitLabel.setContentHuggingPriority(.required, for: .horizontal)
+        unitLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        // Value + unit share the fixed-width readout column; the field fills
+        // whatever the unit doesn't use, so the layout budget is unchanged.
+        let valueStack = NSStackView(views: [valueLabel, unitLabel])
+        valueStack.orientation = .horizontal
+        valueStack.spacing = 3
+        valueStack.alignment = .centerY
+        valueStack.distribution = .fill
+        self.valueStack = valueStack
 
         let control = makeControl()
 
-        let stack = NSStackView(views: [nameLabel, control, valueLabel])
+        let stack = NSStackView(views: [nameLabel, control, valueStack])
         stack.orientation = .horizontal
         stack.spacing = 8
         stack.alignment = .centerY
@@ -61,7 +104,7 @@ final class ParameterRowView: NSView {
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             heightAnchor.constraint(equalToConstant: ParameterRowView.rowHeight),
             nameLabel.widthAnchor.constraint(equalToConstant: 104),
-            valueLabel.widthAnchor.constraint(equalToConstant: 78),
+            valueStack.widthAnchor.constraint(equalToConstant: 78),
         ])
     }
 
@@ -91,7 +134,7 @@ final class ParameterRowView: NSView {
             popup.target = self
             popup.action = #selector(enumChanged)
             enumPopup = popup
-            valueLabel.isHidden = true
+            valueStack?.isHidden = true
             return popup
 
         case .levelWithMode(let modes):
@@ -146,12 +189,12 @@ final class ParameterRowView: NSView {
         default:
             slider?.integerValue = newValue
         }
-        valueLabel.stringValue = ParameterFormatter.string(for: newValue, display: descriptor.display)
+        valueLabel.stringValue = ParameterFormatter.valueText(for: newValue, display: descriptor.display)
     }
 
     private func emit(_ newValue: Int) {
         value = newValue
-        valueLabel.stringValue = ParameterFormatter.string(for: newValue, display: descriptor.display)
+        valueLabel.stringValue = ParameterFormatter.valueText(for: newValue, display: descriptor.display)
         onChange?(newValue)
     }
 
@@ -168,6 +211,29 @@ final class ParameterRowView: NSView {
         let level = slider?.integerValue ?? 0
         let mode = modePopup?.selectedTag() ?? 0
         emit(mode * 256 + level)
+    }
+
+    /// Commits a value typed into the readout field (Enter or focus loss).
+    /// Reverts to the current value if the text can't be parsed; clamps valid
+    /// input to the parameter's range and normalizes the display.
+    @objc private func valueCommitted() {
+        guard valueIsTypeable else { return }
+        guard let parsed = ParameterFormatter.parse(valueLabel.stringValue, display: descriptor.display) else {
+            apply(value: value)
+            return
+        }
+        let newValue: Int
+        if case .levelWithMode = descriptor.display {
+            let level = Swift.max(0, Swift.min(127, parsed))
+            let mode = modePopup?.selectedTag() ?? 0
+            newValue = mode * 256 + level
+        } else if let range {
+            newValue = Swift.max(range.lowerBound, Swift.min(range.upperBound, parsed))
+        } else {
+            newValue = parsed
+        }
+        apply(value: newValue)   // moves the slider + normalizes the text
+        onChange?(newValue)
     }
 
     @objc private func enumChanged() {
