@@ -1,0 +1,3 @@
+group=0 number=0 max=10 inst=0 effect=0
+I01:SnappyFramey
+E01:SnapFrameRev

@@ -1,0 +1,5 @@
+switch=0x0
+encoder=0
+led=0x0
+lcd1=[? SnappyFramey ?]
+lcd2=[? GRP A-01/10  ?]

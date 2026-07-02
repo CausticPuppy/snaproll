@@ -1,0 +1,41 @@
+aframe-capture session 20260701-213259
+target: /dev/cu.usbserial-0001
+output: /Users/jason/Documents/ATV aFrame/captures/20260701-213259
+
+== GetVersion (aFG0)
+  version: VER.2.00-BLD.001 2019/02/28 17:58:50
+  saved version.txt (37 bytes)
+== GetMode (aFG1)
+  mode: HOME (0)
+== Panel state (aFG2/3/4, aFG5)
+  switch=0x0
+  encoder=0
+  led=0x0
+  lcd1=[? SnappyFramey ?]
+  lcd2=[? GRP A-01/10  ?]
+  saved panel_state.txt (77 bytes)
+== Current group/tone (aFGA, aFGB)
+  group=0 number=0 max=10 inst=0 effect=0 | I01:SnappyFramey | E01:SnapFrameRev | 
+  saved current_selection.txt (74 bytes)
+== Tone name lists (aFGE)
+  saved tone_names_inst.txt (941 bytes)
+  saved tone_names_effect.txt (994 bytes)
+== Full project tone data as text (aFGF:-1) — parameter dictionary source
+  saved tone_data_inst_verbatim.txt (20996 bytes)
+  inst: algo=0 prm_num=79
+  saved tone_data_effect_verbatim.txt (7186 bytes)
+  effect: algo=1 prm_num=23 | algo=2 prm_num=26 | algo=3 prm_num=19 | algo=4 prm_num=21 | algo=5 prm_num=22 | algo=6 prm_num=20 | algo=7 prm_num=51 | algo=8 prm_num=22 | algo=9 prm_num=18
+== Enter external edit mode (aFS1:1)
+  mode now: EDIT_EXT
+== Edit buffer TXT dump — probing mode value 2 vs 1 (aFE6)
+  TXT works with mode=2: algo=0 name=SnappyFramey prm_num=79 checksum=7439
+  saved editbuff_inst_txt_mode2.txt (291 bytes)
+  saved editbuff_effect_txt_mode2.txt (121 bytes)
+== Edit buffer BIN dump (aFE6 mode 0) — checksum + layout evidence
+  saved editbuff_inst.bin (184 bytes)
+  saved editbuff_effect.bin (72 bytes)
+== Project blob (aFE8) — LZSS corpus
+  saved project_lzss.bin (15746 bytes)
+  saved project_decoded_attempt.bin (50967 bytes)
+  decoded size with Okumura params: 50967 (expected 32512)
+== Leave external edit mode (aFS1:0)
