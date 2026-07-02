@@ -15,8 +15,13 @@ drives the plan.
   run with the instrument connected; collects everything needed to close the
   spec's documentation gaps (parameter dictionary, LZSS variant, checksums,
   TXT-mode value).
-- `Sources/AFrameEditApp` — the AppKit app (currently: connection scaffold
-  with firmware/mode display, LCD mirror, level/pressure meters).
+- `Sources/AFrameEditApp` — the AppKit editor: sidebar tone browser
+  (instrument/effect tabs, 80-slot lists) + a sectioned, multi-column
+  parameter editor driven by `ParameterMap`. Controls are chosen per display
+  type (sliders with real ranges, enum popups, on/off switches), values are
+  formatted by `ParameterFormatter`, and edits stream live to the device via
+  `EditorSession` (coalesced writes, ⌘S to save the edit buffer to its slot).
+  Runs against the mock device or real hardware.
 - `Tests/AFrameKitTests` — round-trip tests over the mock.
 
 ## Usage

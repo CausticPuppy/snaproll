@@ -197,6 +197,56 @@ final class ParameterMapTests: XCTestCase {
     }
 }
 
+final class ParameterFormatterTests: XCTestCase {
+    func testFormatsMatchHardwareLCDStyle() {
+        // Expectations taken from real LCD renderings in the probe captures.
+        XCTAssertEqual(ParameterFormatter.string(for: 40, display: .centerEdge), "C60/E40")
+        XCTAssertEqual(ParameterFormatter.string(for: 64, display: .pan), "C00")
+        XCTAssertEqual(ParameterFormatter.string(for: 49, display: .pan), "L15")
+        XCTAssertEqual(ParameterFormatter.string(for: 79, display: .pan), "R15")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 40, display: .scaled(divisor: 10, unit: "sec", signed: false)),
+            "4.0 sec")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 13, display: .scaled(divisor: 100, unit: nil, signed: true)),
+            "+0.13")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: -15, display: .scaled(divisor: 10, unit: "dB", signed: true)),
+            "-1.5 dB")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 356, display: .levelWithMode(modes: ["--", "P+", "P-"])),
+            "100 P+")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 80, display: .levelWithMode(modes: ["M+", "M-"])),
+            "80 M+")
+        XCTAssertEqual(ParameterFormatter.string(for: 4200, display: .bpmSyncTime), "420.0 ms")
+        XCTAssertEqual(ParameterFormatter.string(for: -512, display: .bpmSyncTime), "♩8")
+        XCTAssertEqual(ParameterFormatter.string(for: -2032, display: .bpmSyncTime), "♩T16 +240")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 20, display: .enumerated(ParameterMap.compRatioNames)),
+            "INF:1")
+    }
+}
+
+final class MockRangeValidationTests: XCTestCase {
+    func testMockRejectsOutOfRangeLikeFirmware() throws {
+        let client = AFrameClient(transport: MockAFrame())
+        client.responseTimeout = 0.2
+        try client.setExtMode(true)
+        // Main In (idx 0) has hardware range 0...100.
+        try client.extChangeEditBuffParam(.instrument, index: 0, value: 100)
+        XCTAssertThrowsError(
+            try client.extChangeEditBuffParam(.instrument, index: 0, value: 101))
+        // Demo project values must all be range-valid.
+        let (tone, _) = try client.extGetEditBuffText(.instrument)
+        for (i, v) in tone.values.enumerated() {
+            if let r = ParameterMap.range(for: .instrument, algoNum: 0, index: i) {
+                XCTAssertTrue(r.contains(v), "idx \(i) value \(v) outside \(r)")
+            }
+        }
+    }
+}
+
 final class ClientAgainstMockTests: XCTestCase {
     var mock: MockAFrame!
     var client: AFrameClient!

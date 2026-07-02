@@ -13,6 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // Leave MODE_EDIT_EXT so the hardware panel is usable again.
+        mainWindowController?.shutDown()
+    }
 }
 
 // Minimal main menu so ⌘Q works when launched via `swift run`.

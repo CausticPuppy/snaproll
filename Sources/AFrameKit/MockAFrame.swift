@@ -57,9 +57,16 @@ public final class MockAFrame: AFrameTransport {
         let effectPrmCounts: [Int16: Int16] = [1: 23, 2: 26, 3: 19, 4: 21, 5: 22, 6: 20, 7: 51, 8: 22, 9: 18]
         var inst = [DSPPatch]()
         var fx = [DSPPatch]()
+        func clamped(_ v: Int, to range: ClosedRange<Int>?) -> Int16 {
+            guard let range else { return Int16(v) }
+            return Int16(min(max(v, range.lowerBound), range.upperBound))
+        }
         for i in 0..<DSPProject.patchCount {
             var d = [Int16](repeating: 0, count: DSPPatch.dataCount)
-            for j in 0..<79 { d[j] = Int16((i * 7 + j * 3) % 128) }
+            for j in 0..<79 {
+                d[j] = clamped((i * 7 + j * 3) % 128,
+                               to: ParameterMap.range(for: .instrument, algoNum: 0, index: j))
+            }
             inst.append(DSPPatch(
                 algoNum: 0,
                 name: instNames[i % instNames.count] + (i < instNames.count ? "" : "\(i)"),
@@ -68,7 +75,10 @@ public final class MockAFrame: AFrameTransport {
             let fxAlgo = Int16(i % 9 + 1)
             let fxPrm = effectPrmCounts[fxAlgo]!
             var e = [Int16](repeating: 0, count: DSPPatch.dataCount)
-            for j in 0..<Int(fxPrm) { e[j] = Int16((i * 5 + j * 11) % 100) }
+            for j in 0..<Int(fxPrm) {
+                e[j] = clamped((i * 5 + j * 11) % 100,
+                               to: ParameterMap.range(for: .effect, algoNum: Int(fxAlgo), index: j))
+            }
             fx.append(DSPPatch(
                 algoNum: fxAlgo,
                 name: fxNames[i % fxNames.count] + (i < fxNames.count ? "" : "\(i)"),
@@ -253,6 +263,15 @@ public final class MockAFrame: AFrameTransport {
             guard requireExtMode() else { return }
             let sel = intArg(args, 0) ?? 0, n = intArg(args, 1) ?? 0, v = intArg(args, 2) ?? 0
             guard (0..<DSPPatch.dataCount).contains(n) else { respond("1"); return }
+            // Real firmware rejects out-of-range values with NG
+            // (capture 20260702-082114); mirror that.
+            let algo = Int(sel == 0 ? instPatchEdit.algoNum : effectPatchEdit.algoNum)
+            if let range = ParameterMap.range(for: sel == 0 ? .instrument : .effect,
+                                              algoNum: algo, index: n),
+               !range.contains(v) {
+                respond("1")
+                return
+            }
             if sel == 0 {
                 instPatchEdit.data[n] = Int16(truncatingIfNeeded: v)
             } else {

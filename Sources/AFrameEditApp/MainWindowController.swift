@@ -1,188 +1,275 @@
 import AppKit
 import AFrameKit
 
-final class MainWindowController: NSWindowController {
-    private let session = DeviceSession()
-    private var pollTimer: Timer?
+final class MainWindowController: NSWindowController, NSToolbarDelegate {
+    private let session = EditorSession()
+    private let sidebarVC = SidebarViewController()
+    private let editorVC = EditorViewController()
 
-    // Controls
+    // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
-    private let mockCheckbox = NSButton(checkboxWithTitle: "Mock device", target: nil, action: nil)
     private let connectButton = NSButton(title: "Connect", target: nil, action: nil)
-    private let versionLabel = NSTextField(labelWithString: "—")
-    private let modeLabel = NSTextField(labelWithString: "—")
-    private let lcdField = NSTextField(labelWithString: " \n ")
-    private let statusLabel = NSTextField(labelWithString: "Not connected")
+    private let saveButton = NSButton(title: "Save", target: nil, action: nil)
 
-    private let meterNames = ["In Center", "In Edge", "Out L", "Out R", "Press Pitch", "Press Mute"]
-    private var meters: [NSLevelIndicator] = []
+    // Status bar
+    private let statusLabel = NSTextField(labelWithString: "Not connected")
+    private let firmwareLabel = NSTextField(labelWithString: "")
+    private let statusDot = NSTextField(labelWithString: "●")
 
     convenience init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         window.title = "aFrame Edit"
+        window.minSize = NSSize(width: 960, height: 600)
         window.center()
         self.init(window: window)
-        buildUI()
+        buildContent()
+        buildToolbar()
+        wireSession()
         refreshPorts()
     }
 
-    private func buildUI() {
-        guard let content = window?.contentView else { return }
+    // MARK: Layout
 
-        refreshButton.target = self
-        refreshButton.action = #selector(refreshPorts)
-        connectButton.target = self
-        connectButton.action = #selector(toggleConnection)
-        mockCheckbox.target = self
-        mockCheckbox.action = #selector(mockToggled)
+    private func buildContent() {
+        let split = NSSplitViewController()
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        sidebarItem.minimumThickness = 200
+        sidebarItem.maximumThickness = 300
+        split.addSplitViewItem(sidebarItem)
 
-        let portRow = NSStackView(views: [portPopup, refreshButton, mockCheckbox, connectButton])
-        portRow.orientation = .horizontal
-        portRow.spacing = 8
-        portPopup.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        // Detail area: editor + status bar
+        let detailVC = NSViewController()
+        let container = NSView()
+        detailVC.view = container
 
-        let infoGrid = NSGridView(views: [
-            [NSTextField(labelWithString: "Firmware:"), versionLabel],
-            [NSTextField(labelWithString: "Mode:"), modeLabel],
-        ])
-        infoGrid.rowSpacing = 4
-        infoGrid.columnSpacing = 12
+        addChildIfNeeded(editorVC, to: detailVC)
+        let editorView = editorVC.view
+        editorView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(editorView)
 
-        lcdField.font = NSFont.monospacedSystemFont(ofSize: 18, weight: .medium)
-        lcdField.textColor = NSColor(calibratedRed: 0.7, green: 0.95, blue: 1.0, alpha: 1)
-        lcdField.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 1)
-        lcdField.drawsBackground = true
-        lcdField.alignment = .center
-        lcdField.maximumNumberOfLines = 2
-        lcdField.heightAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
-
-        let meterGrid = NSGridView(numberOfColumns: 2, rows: 0)
-        meterGrid.rowSpacing = 6
-        meterGrid.columnSpacing = 12
-        for name in meterNames {
-            let indicator = NSLevelIndicator()
-            indicator.levelIndicatorStyle = .continuousCapacity
-            indicator.minValue = 0
-            indicator.maxValue = 15
-            indicator.warningValue = 10
-            indicator.criticalValue = 14
-            indicator.widthAnchor.constraint(greaterThanOrEqualToConstant: 260).isActive = true
-            meters.append(indicator)
-            let label = NSTextField(labelWithString: name)
-            label.widthAnchor.constraint(greaterThanOrEqualToConstant: 90).isActive = true
-            meterGrid.addRow(with: [label, indicator])
-        }
-
+        statusDot.font = .systemFont(ofSize: 9)
+        statusDot.textColor = .systemRed
+        statusLabel.font = .systemFont(ofSize: 11)
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.lineBreakMode = .byTruncatingTail
+        firmwareLabel.font = .systemFont(ofSize: 11)
+        firmwareLabel.textColor = .tertiaryLabelColor
+        firmwareLabel.alignment = .right
 
-        let stack = NSStackView(views: [portRow, infoGrid, lcdField, meterGrid, statusLabel])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 14
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(stack)
+        let statusStack = NSStackView(views: [statusDot, statusLabel, NSView(), firmwareLabel])
+        statusStack.orientation = .horizontal
+        statusStack.spacing = 6
+        statusStack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+        statusStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let statusBackground = NSVisualEffectView()
+        statusBackground.material = .titlebar
+        statusBackground.blendingMode = .withinWindow
+        statusBackground.translatesAutoresizingMaskIntoConstraints = false
+        statusBackground.addSubview(statusStack)
+
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(statusBackground)
+        container.addSubview(divider)
+
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: content.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
-            lcdField.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+            editorView.topAnchor.constraint(equalTo: container.topAnchor),
+            editorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            editorView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            editorView.bottomAnchor.constraint(equalTo: statusBackground.topAnchor),
+
+            divider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            divider.bottomAnchor.constraint(equalTo: statusBackground.topAnchor),
+
+            statusBackground.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            statusBackground.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            statusBackground.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            statusBackground.heightAnchor.constraint(equalToConstant: 26),
+
+            statusStack.topAnchor.constraint(equalTo: statusBackground.topAnchor),
+            statusStack.leadingAnchor.constraint(equalTo: statusBackground.leadingAnchor),
+            statusStack.trailingAnchor.constraint(equalTo: statusBackground.trailingAnchor),
+            statusStack.bottomAnchor.constraint(equalTo: statusBackground.bottomAnchor),
         ])
+
+        let detailItem = NSSplitViewItem(viewController: detailVC)
+        detailItem.minimumThickness = 640
+        split.addSplitViewItem(detailItem)
+
+        window?.contentViewController = split
+    }
+
+    private func addChildIfNeeded(_ child: NSViewController, to parent: NSViewController) {
+        parent.addChild(child)
+    }
+
+    private func buildToolbar() {
+        let toolbar = NSToolbar(identifier: "main")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        window?.toolbar = toolbar
+        window?.toolbarStyle = .unified
+    }
+
+    // MARK: Toolbar delegate
+
+    private static let connectionItemID = NSToolbarItem.Identifier("connection")
+    private static let saveItemID = NSToolbarItem.Identifier("save")
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.connectionItemID, .flexibleSpace, Self.saveItemID]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        switch id {
+        case Self.connectionItemID:
+            portPopup.controlSize = .regular
+            portPopup.widthAnchor.constraint(equalToConstant: 210).isActive = true
+            connectButton.target = self
+            connectButton.action = #selector(toggleConnection)
+            connectButton.bezelStyle = .texturedRounded
+            let stack = NSStackView(views: [portPopup, connectButton])
+            stack.orientation = .horizontal
+            stack.spacing = 6
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = stack
+            item.label = "Connection"
+            return item
+        case Self.saveItemID:
+            saveButton.target = self
+            saveButton.action = #selector(saveCurrentTone)
+            saveButton.bezelStyle = .texturedRounded
+            saveButton.keyEquivalent = "s"
+            saveButton.keyEquivalentModifierMask = [.command]
+            saveButton.isEnabled = false
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = saveButton
+            item.label = "Save"
+            item.toolTip = "Write the edit buffer to its project slot (⌘S)"
+            return item
+        default:
+            return nil
+        }
+    }
+
+    // MARK: Ports
+
+    @objc private func refreshPorts() {
+        let previous = portPopup.titleOfSelectedItem
+        portPopup.removeAllItems()
+        portPopup.addItem(withTitle: "Mock Device")
+        let ports = SerialPortDiscovery.candidatePorts()
+            .filter { !$0.contains("Bluetooth") && !$0.contains("debug") }
+        if !ports.isEmpty {
+            portPopup.menu?.addItem(.separator())
+            portPopup.addItems(withTitles: ports)
+        }
+        if let previous, portPopup.itemTitles.contains(previous) {
+            portPopup.selectItem(withTitle: previous)
+        } else if let hardware = ports.first {
+            portPopup.selectItem(withTitle: hardware)
+        }
+    }
+
+    // MARK: Session wiring
+
+    private func wireSession() {
+        sidebarVC.onDomainChange = { [weak self] sel in
+            self?.editorVC.setDomain(sel)
+        }
+        sidebarVC.onSelectTone = { [weak self] sel, num in
+            self?.session.selectTone(sel, num: num)
+        }
+        editorVC.onParamChange = { [weak self] sel, index, value in
+            self?.session.setParameter(sel, index: index, value: value)
+        }
+        editorVC.onRename = { [weak self] sel, name in
+            self?.session.rename(sel, to: name)
+        }
+
+        session.onEvent = { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .connected(let firmware, let group):
+                self.statusDot.textColor = .systemGreen
+                self.statusLabel.stringValue =
+                    "Connected · Group \(ToneGroup(rawValue: group.group)?.description ?? "?")-\(String(format: "%02d", group.number + 1))"
+                self.firmwareLabel.stringValue = firmware
+                self.connectButton.title = "Disconnect"
+                self.connectButton.isEnabled = true
+                self.saveButton.isEnabled = true
+                self.sidebarVC.setSelected(num: group.instNum, for: .instrument)
+                self.sidebarVC.setSelected(num: group.effectNum, for: .effect)
+            case .disconnected:
+                self.statusDot.textColor = .systemRed
+                self.statusLabel.stringValue = "Not connected"
+                self.firmwareLabel.stringValue = ""
+                self.connectButton.title = "Connect"
+                self.connectButton.isEnabled = true
+                self.saveButton.isEnabled = false
+                self.sidebarVC.clear()
+                self.editorVC.clear()
+            case .names(let sel, let list):
+                self.sidebarVC.setNames(list, for: sel)
+            case .toneLoaded(let sel, let num, let tone):
+                self.editorVC.showTone(tone, num: num, for: sel)
+                self.sidebarVC.setSelected(num: num, for: sel)
+            case .saved(let sel, let num):
+                let kind = sel == .instrument ? "instrument" : "effect"
+                self.statusLabel.stringValue =
+                    "Saved \(kind) to slot \(String(format: "%02d", num + 1)) — persists at normal power-off"
+            case .status(let text):
+                self.statusLabel.stringValue = text
+            case .error(let text):
+                self.statusLabel.stringValue = "⚠ \(text)"
+                if !self.session.isConnected {
+                    self.connectButton.title = "Connect"
+                    self.connectButton.isEnabled = true
+                }
+            }
+        }
     }
 
     // MARK: Actions
 
-    @objc private func refreshPorts() {
-        portPopup.removeAllItems()
-        let ports = SerialPortDiscovery.candidatePorts()
-        if ports.isEmpty {
-            portPopup.addItem(withTitle: "No serial ports found")
-        } else {
-            portPopup.addItems(withTitles: ports)
-        }
-        portPopup.isEnabled = !ports.isEmpty && mockCheckbox.state == .off
-    }
-
-    @objc private func mockToggled() {
-        portPopup.isEnabled = mockCheckbox.state == .off && portPopup.numberOfItems > 0
-    }
-
     @objc private func toggleConnection() {
         if session.isConnected {
-            stopPolling()
             session.disconnect()
-            connectButton.title = "Connect"
-            statusLabel.stringValue = "Disconnected"
-            versionLabel.stringValue = "—"
-            modeLabel.stringValue = "—"
             return
         }
-
+        refreshPorts()
         let transport: AFrameTransport
-        if mockCheckbox.state == .on {
+        if portPopup.indexOfSelectedItem == 0 {
             transport = MockAFrame()
         } else if let title = portPopup.titleOfSelectedItem, title.hasPrefix("/dev/") {
             transport = POSIXSerialPort(path: title)
         } else {
-            statusLabel.stringValue = "Select a port or enable the mock device"
+            statusLabel.stringValue = "Select a port or the mock device"
             return
         }
-
         connectButton.isEnabled = false
         statusLabel.stringValue = "Connecting…"
-        session.connect(transport: transport) { [weak self] result in
-            guard let self else { return }
-            self.connectButton.isEnabled = true
-            switch result {
-            case .success(let version):
-                self.versionLabel.stringValue = version
-                self.connectButton.title = "Disconnect"
-                self.statusLabel.stringValue = "Connected"
-                self.startPolling()
-            case .failure(let error):
-                self.statusLabel.stringValue = "Connection failed: \(error.localizedDescription)"
-            }
-        }
+        session.connect(transport: transport)
     }
 
-    // MARK: Polling
-
-    private func startPolling() {
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.pollOnce()
-        }
+    @objc func saveCurrentTone() {
+        guard session.isConnected, let slot = editorVC.currentSlot else { return }
+        session.saveToProject(editorVC.domain, num: slot)
     }
 
-    private func stopPolling() {
-        pollTimer?.invalidate()
-        pollTimer = nil
-        for m in meters { m.doubleValue = 0 }
-    }
-
-    private func pollOnce() {
-        session.pollStatus { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let status):
-                self.modeLabel.stringValue = "\(status.mode)"
-                self.lcdField.stringValue = "\(status.lcdLine1)\n\(status.lcdLine2)"
-                let values = [
-                    status.peaks.inCenter, status.peaks.inEdge,
-                    status.peaks.outL, status.peaks.outR,
-                    status.pressure.pitch, status.pressure.mute,
-                ]
-                for (meter, v) in zip(self.meters, values) {
-                    meter.doubleValue = Double(v)
-                }
-            case .failure(let error):
-                self.statusLabel.stringValue = "Poll error: \(error.localizedDescription)"
-            }
-        }
+    func shutDown() {
+        session.disconnect()
     }
 }
