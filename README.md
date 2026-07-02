@@ -68,3 +68,39 @@ in LZ plaintext — the factory project contains none. Our encoder uses `7D 7D`
 stuffing as a last resort; a wrong guess is rejected by the device's project
 checksum, so it cannot corrupt anything. Definitive test: write a patch
 containing a parameter value of 125 and re-download the project.
+
+## Parameter dictionary (`ParameterMap.swift`)
+
+The index → name/format mapping for every parameter was enumerated by the
+hardware itself: `aframe-capture --probe` rewrites each parameter with its
+current value and `lcd=1`, then reads the device LCD, which prints the
+parameter's name, formatted value, and unit (evidence:
+`captures/20260702-080734/param_probe.txt`). All 301 parameters are mapped —
+79 instrument + 222 effect across 9 algorithms — and a regression test checks
+every name against the probe capture.
+
+Probe-confirmed algorithm numbering: 1 Reverb, 2 Delay, **3 Chorus,
+4 Flanger** (swapped vs. the manual's block-diagram order), 5 Phaser, 6 Wah,
+7 Multi-Tap Delay, 8 SpaceR, 9 SpaceZ.
+
+The value sweep (`--sweep` / `--sweep-quick`, captures 20260702-082318 and
+-083220) completed the dictionary:
+
+- **Exact valid ranges for all 301 parameters** (`ParameterRanges.swift`,
+  machine-generated from the sweep). Discovered because aFE3 *rejects*
+  out-of-range values with NG, so ranges were found by accept/reject binary
+  search.
+- **Complete label tables** for every coded parameter: 31 overtone types,
+  20 Xtra oscillator types, 29 pressure scales, comp ratio/knee, per-algorithm
+  PressMode sets, Delay/Chorus/Wah types, AutoRevo, Ambience A–E, Bend curves
+  A0–A8, Jx filter types.
+- **Composite encodings**: mixer Lev = level + 256×mode (`--`/`P+`/`P-`),
+  Snd = level + 256×mode (`M+`/`M-` = MASTER MIX BUS switch); SC = root×128 ±
+  scale code; Mute = 0 OFF / 1 ON(global) / offset-by-one ± sensitivity;
+  delay times: negative = BPM sync, −(division_code×256 + fine).
+- Tests enforce that every enumerated label table exactly covers its
+  hardware-accepted range.
+
+Still open (cosmetic, sweep later if needed): auto-pan mode labels inside the
+mixer Pan composite (23 modes), negative-zone rendering of Tune parameters
+(editor-side note+cents display), and BPM division codes 3/5/6 labels.

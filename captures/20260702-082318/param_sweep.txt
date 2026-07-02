@@ -1,0 +1,703 @@
+=== INST tone=SnappyFramey
+--- INST idx 0 Main In range=[0,100] orig=40
+--- INST idx 1 MainOvt range=[0,30] orig=3
+       0 | MainOvt:Natural 
+       1 | MainOvt:Odd No. 
+       2 | MainOvt:PrimeNo.
+       3 | MainOvt:BesselM0
+       4 | MainOvt:BesselM1
+       5 | MainOvt:BesselM2
+       6 | MainOvt:BesselM3
+       7 | MainOvt:BesselM4
+       8 | MainOvt:BesselM5
+       9 | MainOvt:BesselM6
+      10 | MainOvt:BesselM7
+      11 | MainOvt:Membran 
+      12 | MainOvt:MembrnH1
+      13 | MainOvt:MembrnH2
+      14 | MainOvt:MembrnH3
+      15 | MainOvt:MembrnH4
+      16 | MainOvt:Taiko   
+      17 | MainOvt:KettleD 
+      18 | MainOvt:BassDrm 
+      19 | MainOvt:Tom     
+      20 | MainOvt:T.Head  
+      21 | MainOvt:B.Head  
+      22 | MainOvt:T+B Head
+      23 | MainOvt:FryPan  
+      24 | MainOvt:Cymbal  
+      25 | MainOvt:VibeLow 
+      26 | MainOvt:VibeMid 
+      27 | MainOvt:VibeHigh
+      28 | MainOvt:Glocken 
+      29 | MainOvt:Marimba 
+      30 | MainOvt:Organ   
+--- INST idx 2 MainHrmNo. range=[1,32] orig=15
+--- INST idx 3 MainTune range=[-12749,12544] orig=30
+--- INST idx 4 MainDcay range=[1,100] orig=40
+--- INST idx 5 Main HFD range=[-100,100] orig=13
+--- INST idx 6 Main DQM range=[0,200] orig=90
+--- INST idx 7 Main DFM range=[-100,100] orig=-12
+--- INST idx 8 Main PFM range=[-100,100] orig=8
+--- INST idx 9 MainSC range=[-256,3101] orig=0
+      -2 | MainSC:mTriad P?
+      -1 | MainSC:MTriad P?
+       0 | MainSC:OFF      
+       1 | MainSC:MTriad P?
+       2 | MainSC:mTriad P?
+       3 | MainSC:MPenta P?
+       4 | MainSC:mPenta P?
+       5 | MainSC:MScale P?
+       6 | MainSC:mScale P?
+       7 | MainSC:Sus    P?
+       8 | MainSC:mHarmo P?
+       9 | MainSC:mMelo  P?
+      10 | MainSC:mBlues P?
+      11 | MainSC:WholeT.P?
+      12 | MainSC:AlteredP?
+      13 | MainSC:Lydian P?
+      14 | MainSC:Dorian P?
+      15 | MainSC:Phrygi.P?
+      16 | MainSC:Mxlydi.P?
+      17 | MainSC:Arabic P?
+      18 | MainSC:MHungarP?
+      19 | MainSC:mHungarP?
+      20 | MainSC:Hindu  P?
+      21 | MainSC:Ryukyu P?
+      22 | MainSC:MinnyouP?
+      23 | MainSC:Miyako P?
+      24 | MainSC:Ritsu1 P?
+      25 | MainSC:Ritsu2 P?
+      26 | MainSC:Ryo    P?
+      27 | MainSC:5th    P?
+      28 | MainSC:Octave P?
+      29 | MainSC:ChrmticP?
+      30 | MainSC:P?P??    
+      40 | MainSC:K?P??    
+      50 | MainSC:M-P??    
+      64 | MainSC:OFFP??   
+     100 | MainSC:P??      
+--- INST idx 10 MainMute range=[-100,101] orig=65
+      -2 | MainMute:-2?    
+      -1 | MainMute:-1?    
+       0 | MainMute:OFF?   
+       1 | MainMute:ON(30)?
+       2 | MainMute:+1?    
+       3 | MainMute:+2?    
+       4 | MainMute:+3?    
+       5 | MainMute:+4?    
+       6 | MainMute:+5?    
+       7 | MainMute:+6?    
+       8 | MainMute:+7?    
+       9 | MainMute:+8?    
+      10 | MainMute:+9?    
+      11 | MainMute:+10?   
+      12 | MainMute:+11?   
+      13 | MainMute:+12?   
+      14 | MainMute:+13?   
+      15 | MainMute:+14?   
+      16 | MainMute:+15?   
+      17 | MainMute:+16?   
+      18 | MainMute:+17?   
+      19 | MainMute:+18?   
+      20 | MainMute:+19?   
+      21 | MainMute:+20?   
+      22 | MainMute:+21?   
+      23 | MainMute:+22?   
+      24 | MainMute:+23?   
+      25 | MainMute:+24?   
+      26 | MainMute:+25?   
+      27 | MainMute:+26?   
+      28 | MainMute:+27?   
+      29 | MainMute:+28?   
+      30 | MainMute:+29?   
+      40 | MainMute:+39?   
+      50 | MainMute:+49?   
+      64 | MainMute:+63?   
+     100 | MainMute:+99?   
+--- INST idx 11 Main OD range=[-100,100] orig=0
+--- INST idx 12 Sub In range=[0,100] orig=100
+--- INST idx 13 Sub Ovt range=[0,30] orig=9
+       0 | Sub Ovt:Natural 
+       1 | Sub Ovt:Odd No. 
+       2 | Sub Ovt:PrimeNo.
+       3 | Sub Ovt:BesselM0
+       4 | Sub Ovt:BesselM1
+       5 | Sub Ovt:BesselM2
+       6 | Sub Ovt:BesselM3
+       7 | Sub Ovt:BesselM4
+       8 | Sub Ovt:BesselM5
+       9 | Sub Ovt:BesselM6
+      10 | Sub Ovt:BesselM7
+      11 | Sub Ovt:Membran 
+      12 | Sub Ovt:MembrnH1
+      13 | Sub Ovt:MembrnH2
+      14 | Sub Ovt:MembrnH3
+      15 | Sub Ovt:MembrnH4
+      16 | Sub Ovt:Taiko   
+      17 | Sub Ovt:KettleD 
+      18 | Sub Ovt:BassDrm 
+      19 | Sub Ovt:Tom     
+      20 | Sub Ovt:T.Head  
+      21 | Sub Ovt:B.Head  
+      22 | Sub Ovt:T+B Head
+      23 | Sub Ovt:FryPan  
+      24 | Sub Ovt:Cymbal  
+      25 | Sub Ovt:VibeLow 
+      26 | Sub Ovt:VibeMid 
+      27 | Sub Ovt:VibeHigh
+      28 | Sub Ovt:Glocken 
+      29 | Sub Ovt:Marimba 
+      30 | Sub Ovt:Organ   
+--- INST idx 14 Sub HrmNo. range=[1,32] orig=17
+--- INST idx 15 Sub Tune range=[-12749,12544] orig=64
+--- INST idx 16 Sub Dcay range=[1,3000] orig=3000
+--- INST idx 17 Sub HFD range=[-100,100] orig=90
+--- INST idx 18 Sub DQM range=[0,200] orig=65
+--- INST idx 19 Sub DFM range=[-100,100] orig=-3
+--- INST idx 20 Sub PFM range=[-100,100] orig=8
+--- INST idx 21 Sub SC range=[-256,3101] orig=0
+      -2 | Sub SC:mTriad P?
+      -1 | Sub SC:MTriad P?
+       0 | Sub SC:OFF      
+       1 | Sub SC:MTriad P?
+       2 | Sub SC:mTriad P?
+       3 | Sub SC:MPenta P?
+       4 | Sub SC:mPenta P?
+       5 | Sub SC:MScale P?
+       6 | Sub SC:mScale P?
+       7 | Sub SC:Sus    P?
+       8 | Sub SC:mHarmo P?
+       9 | Sub SC:mMelo  P?
+      10 | Sub SC:mBlues P?
+      11 | Sub SC:WholeT.P?
+      12 | Sub SC:AlteredP?
+      13 | Sub SC:Lydian P?
+      14 | Sub SC:Dorian P?
+      15 | Sub SC:Phrygi.P?
+      16 | Sub SC:Mxlydi.P?
+      17 | Sub SC:Arabic P?
+      18 | Sub SC:MHungarP?
+      19 | Sub SC:mHungarP?
+      20 | Sub SC:Hindu  P?
+      21 | Sub SC:Ryukyu P?
+      22 | Sub SC:MinnyouP?
+      23 | Sub SC:Miyako P?
+      24 | Sub SC:Ritsu1 P?
+      25 | Sub SC:Ritsu2 P?
+      26 | Sub SC:Ryo    P?
+      27 | Sub SC:5th    P?
+      28 | Sub SC:Octave P?
+      29 | Sub SC:ChrmticP?
+      30 | Sub SC:P?P??    
+      40 | Sub SC:K?P??    
+      50 | Sub SC:M-P??    
+      64 | Sub SC:OFFP??   
+     100 | Sub SC:P??      
+--- INST idx 22 Sub Mute range=[-100,101] orig=1
+      -2 | Sub Mute:-2?    
+      -1 | Sub Mute:-1?    
+       0 | Sub Mute:OFF?   
+       1 | Sub Mute:ON(30)?
+       2 | Sub Mute:+1?    
+       3 | Sub Mute:+2?    
+       4 | Sub Mute:+3?    
+       5 | Sub Mute:+4?    
+       6 | Sub Mute:+5?    
+       7 | Sub Mute:+6?    
+       8 | Sub Mute:+7?    
+       9 | Sub Mute:+8?    
+      10 | Sub Mute:+9?    
+      11 | Sub Mute:+10?   
+      12 | Sub Mute:+11?   
+      13 | Sub Mute:+12?   
+      14 | Sub Mute:+13?   
+      15 | Sub Mute:+14?   
+      16 | Sub Mute:+15?   
+      17 | Sub Mute:+16?   
+      18 | Sub Mute:+17?   
+      19 | Sub Mute:+18?   
+      20 | Sub Mute:+19?   
+      21 | Sub Mute:+20?   
+      22 | Sub Mute:+21?   
+      23 | Sub Mute:+22?   
+      24 | Sub Mute:+23?   
+      25 | Sub Mute:+24?   
+      26 | Sub Mute:+25?   
+      27 | Sub Mute:+26?   
+      28 | Sub Mute:+27?   
+      29 | Sub Mute:+28?   
+      30 | Sub Mute:+29?   
+      40 | Sub Mute:+39?   
+      50 | Sub Mute:+49?   
+      64 | Sub Mute:+63?   
+     100 | Sub Mute:+99?   
+--- INST idx 23 Sub OD range=[-100,100] orig=0
+--- INST idx 24 Sub Delay range=[0,200] orig=0
+--- INST idx 25 Sub D.Tap range=[0,8] orig=1
+--- INST idx 26 Xtra In range=[0,100] orig=95
+--- INST idx 27 XtraType range=[0,19] orig=2
+       0 | XtraType:WhiteNz
+       1 | XtraType:LPF Nz 
+       2 | XtraType:HPF Nz 
+       3 | XtraType:BPF Nz 
+       4 | XtraType:Jingle1
+       5 | XtraType:Jingle2
+       6 | XtraType:Jingle3
+       7 | XtraType:Click1 
+       8 | XtraType:Click2 
+       9 | XtraType:Click3 
+      10 | XtraType:Click4 
+      11 | XtraType:Jx TxT 
+      12 | XtraType:Jx RxR 
+      13 | XtraType:Jx SxS 
+      14 | XtraType:Jx TxR 
+      15 | XtraType:Jx TxS 
+      16 | XtraType:Jx RxT 
+      17 | XtraType:Jx RxS 
+      18 | XtraType:Jx SxT 
+      19 | XtraType:Jx SxR 
+--- INST idx 28 XtraTune range=[-12749,12544] orig=2520
+--- INST idx 29 XtraDcay range=[1,3000] orig=290
+--- INST idx 30 XtraHold range=[0,500] orig=10
+--- INST idx 31 XtraFltQ range=[5,160] orig=120
+--- INST idx 32 Xtra DQM range=[0,200] orig=20
+--- INST idx 33 Xtra DFM range=[-100,100] orig=10
+--- INST idx 34 Xtra PFM range=[-100,100] orig=0
+--- INST idx 35 XtraMute range=[-100,101] orig=-90
+      -2 | XtraMute:-2?    
+      -1 | XtraMute:-1?    
+       0 | XtraMute:OFF?   
+       1 | XtraMute:ON(30)?
+       2 | XtraMute:+1?    
+       3 | XtraMute:+2?    
+       4 | XtraMute:+3?    
+       5 | XtraMute:+4?    
+       6 | XtraMute:+5?    
+       7 | XtraMute:+6?    
+       8 | XtraMute:+7?    
+       9 | XtraMute:+8?    
+      10 | XtraMute:+9?    
+      11 | XtraMute:+10?   
+      12 | XtraMute:+11?   
+      13 | XtraMute:+12?   
+      14 | XtraMute:+13?   
+      15 | XtraMute:+14?   
+      16 | XtraMute:+15?   
+      17 | XtraMute:+16?   
+      18 | XtraMute:+17?   
+      19 | XtraMute:+18?   
+      20 | XtraMute:+19?   
+      21 | XtraMute:+20?   
+      22 | XtraMute:+21?   
+      23 | XtraMute:+22?   
+      24 | XtraMute:+23?   
+      25 | XtraMute:+24?   
+      26 | XtraMute:+25?   
+      27 | XtraMute:+26?   
+      28 | XtraMute:+27?   
+      29 | XtraMute:+28?   
+      30 | XtraMute:+29?   
+      40 | XtraMute:+39?   
+      50 | XtraMute:+49?   
+      64 | XtraMute:+63?   
+     100 | XtraMute:+99?   
+--- INST idx 36 XtraDelay range=[0,200] orig=0
+--- INST idx 37 XtraD.Tap range=[-3000,8] orig=7
+--- INST idx 38 DryC.EqF range=[20,20000] orig=100
+--- INST idx 39 DryC.EqG range=[-180,180] orig=0
+--- INST idx 40 DryC.EqQ range=[5,160] orig=10
+--- INST idx 41 DryE.EqF range=[20,20000] orig=5000
+--- INST idx 42 DryE.EqG range=[-180,180] orig=130
+--- INST idx 43 DryE.EqQ range=[5,160] orig=15
+--- INST idx 44 CentrLPF range=[20,20000] orig=840
+--- INST idx 45 Edge HPF range=[20,20000] orig=500
+--- INST idx 46 Mute Sens range=[0,100] orig=30
+--- INST idx 47 Mute Mask range=[0,500] orig=90
+--- INST idx 48 Mute Dcay range=[0,100] orig=81
+--- INST idx 49 Bend Curve range=[0,8] orig=4
+       0 | Bend Curve:A0?  
+       1 | Bend Curve:A1?  
+       2 | Bend Curve:A2?  
+       3 | Bend Curve:A3?  
+       4 | Bend Curve:A4?  
+       5 | Bend Curve:A5?  
+       6 | Bend Curve:A6?  
+       7 | Bend Curve:A7?  
+       8 | Bend Curve:A8?  
+--- INST idx 50 MixMainPan range=[1,2943] orig=64
+--- INST idx 51 MixSub Pan range=[1,2943] orig=64
+--- INST idx 52 MixXtraPan range=[1,2943] orig=64
+--- INST idx 53 MixDryCPan range=[1,127] orig=64
+--- INST idx 54 MixDryEPan range=[1,127] orig=64
+--- INST idx 55 MixMainLev range=[0,639] orig=100
+       0 | MixMainLev:  0--
+       1 | MixMainLev:  1--
+      63 | MixMainLev: 63--
+      64 | MixMainLev: 64--
+     100 | MixMainLev:100--
+     127 | MixMainLev:127--
+     128 | MixMainLev:-128-
+     192 | MixMainLev:-64--
+     228 | MixMainLev:-28--
+     256 | MixMainLev:  0P+
+     356 | MixMainLev:100P+
+--- INST idx 56 MixSub Lev range=[0,639] orig=75
+--- INST idx 57 MixXtraLev range=[0,639] orig=90
+--- INST idx 58 MixDryCLev range=[0,127] orig=50
+--- INST idx 59 MixDryELev range=[0,127] orig=70
+--- INST idx 60 MixMainSnd range=[0,383] orig=80
+       0 | MixMainSnd:  0M+
+       1 | MixMainSnd:  1M+
+      63 | MixMainSnd: 63M+
+      64 | MixMainSnd: 64M+
+     100 | MixMainSnd:100M+
+     127 | MixMainSnd:127M+
+     128 | MixMainSnd:-128M
+     192 | MixMainSnd:-64M+
+     228 | MixMainSnd:-28M+
+     256 | MixMainSnd:  0M-
+     356 | MixMainSnd:100M-
+--- INST idx 61 MixSub Snd range=[0,383] orig=100
+--- INST idx 62 MixXtraSnd range=[0,383] orig=100
+--- INST idx 63 MixDryCSnd range=[0,383] orig=100
+--- INST idx 64 MixDryESnd range=[0,383] orig=100
+--- INST idx 65 MixMasterLev range=[0,127] orig=100
+--- INST idx 66 MixMasterBal range=[1,127] orig=64
+--- INST idx 67 XtraD.Fluct range=[0,100] orig=0
+--- INST idx 68 XtraD.Atck range=[0,200] orig=0
+--- INST idx 69 XtraD.Dcay range=[1,999] orig=50
+--- INST idx 70 XtraJxF.Type range=[0,2] orig=1
+       0 | XtraJxF.Type:LPF
+       1 | XtraJxF.Type:HPF
+       2 | XtraJxF.Type:BPF
+--- INST idx 71 XtraJxFR range=[-1000,12544] orig=-100
+--- INST idx 72 XtraJxMR range=[-1000,12544] orig=-150
+--- INST idx 73 XtraJxXFMod range=[-100,100] orig=0
+--- INST idx 74 XtraJxCarLev range=[0,127] orig=100
+--- INST idx 75 XtraJxModLev range=[0,127] orig=100
+--- INST idx 76 XtraJxRingLv range=[0,127] orig=0
+--- INST idx 77 XtraSC range=[-256,3101] orig=0
+      -2 | XtraSC:mTriad P?
+      -1 | XtraSC:MTriad P?
+       0 | XtraSC:OFF      
+       1 | XtraSC:MTriad P?
+       2 | XtraSC:mTriad P?
+       3 | XtraSC:MPenta P?
+       4 | XtraSC:mPenta P?
+       5 | XtraSC:MScale P?
+       6 | XtraSC:mScale P?
+       7 | XtraSC:Sus    P?
+       8 | XtraSC:mHarmo P?
+       9 | XtraSC:mMelo  P?
+      10 | XtraSC:mBlues P?
+      11 | XtraSC:WholeT.P?
+      12 | XtraSC:AlteredP?
+      13 | XtraSC:Lydian P?
+      14 | XtraSC:Dorian P?
+      15 | XtraSC:Phrygi.P?
+      16 | XtraSC:Mxlydi.P?
+      17 | XtraSC:Arabic P?
+      18 | XtraSC:MHungarP?
+      19 | XtraSC:mHungarP?
+      20 | XtraSC:Hindu  P?
+      21 | XtraSC:Ryukyu P?
+      22 | XtraSC:MinnyouP?
+      23 | XtraSC:Miyako P?
+      24 | XtraSC:Ritsu1 P?
+      25 | XtraSC:Ritsu2 P?
+      26 | XtraSC:Ryo    P?
+      27 | XtraSC:5th    P?
+      28 | XtraSC:Octave P?
+      29 | XtraSC:ChrmticP?
+      30 | XtraSC:P?P??    
+      40 | XtraSC:K?P??    
+      50 | XtraSC:M-P??    
+      64 | XtraSC:OFFP??   
+     100 | XtraSC:P??      
+--- INST idx 78 XtraBoost range=[0,100] orig=0
+=== FX1 tone=SnapFrameRev
+--- FX1 idx 0 Time range=[1,1000] orig=10
+--- FX1 idx 1 Pre Delay range=[0,200] orig=25
+--- FX1 idx 2 ER Dens range=[0,100] orig=70
+--- FX1 idx 3 Rev Dens range=[0,100] orig=90
+--- FX1 idx 4 HF Damp range=[5,100] orig=100
+--- FX1 idx 5 Pan Spread range=[0,100] orig=100
+--- FX1 idx 6 ER Level range=[0,100] orig=40
+--- FX1 idx 7 Rev Level range=[0,100] orig=100
+--- FX1 idx 8 Wet Level range=[0,100] orig=10
+--- FX1 idx 9 Dry Level range=[0,100] orig=100
+--- FX1 idx 10 PressMode range=[0,4] orig=0
+       0 | PressMode:OFF?  
+       1 | PressMode:MUTE? 
+       2 | PressMode:LEVEL?
+       3 | PressMode:SEND? 
+       4 | PressMode:SPREAD
+--- FX1 idx 11 PressSens range=[0,100] orig=50
+--- FX1 idx 12 PressAtck range=[0,1000] orig=100
+--- FX1 idx 13 PressRele range=[0,3000] orig=100
+--- FX1 idx 14 Reverb Sw range=[0,1] orig=1
+--- FX1 idx 15 FxMtrx range=[0,1] orig=0
+       0 | FxMtrx:Snd/Rtn? 
+       1 | FxMtrx:MasterIns
+--- FX1 idx 16 Comp Sw range=[0,1] orig=1
+--- FX1 idx 17 CompThrs range=[-480,0] orig=-15
+--- FX1 idx 18 CompRatio range=[1,20] orig=10
+       1 | CompRatio:1.1:1?
+       2 | CompRatio:1.2:1?
+       3 | CompRatio:1.3:1?
+       4 | CompRatio:1.4:1?
+       5 | CompRatio:1.5:1?
+       6 | CompRatio:1.6:1?
+       7 | CompRatio:1.7:1?
+       8 | CompRatio:1.8:1?
+       9 | CompRatio:1.9:1?
+      10 | CompRatio:  2:1?
+      11 | CompRatio:  3:1?
+      12 | CompRatio:  4:1?
+      13 | CompRatio:  5:1?
+      14 | CompRatio:  6:1?
+      15 | CompRatio:  7:1?
+      16 | CompRatio:  8:1?
+      17 | CompRatio:  9:1?
+      18 | CompRatio: 10:1?
+      19 | CompRatio: 20:1?
+      20 | CompRatio:INF:1?
+--- FX1 idx 19 CompKnee range=[0,2] orig=1
+       0 | CompKnee:HARD?  
+       1 | CompKnee:SOFT1? 
+       2 | CompKnee:SOFT2? 
+--- FX1 idx 20 CompAtck range=[0,3000] orig=0
+--- FX1 idx 21 CompRele range=[0,10000] orig=300
+--- FX1 idx 22 CompGain range=[-240,240] orig=0
+=== FX2 tone=TuTuDrmDly
+--- FX2 idx 0 Type range=[0,3] orig=0
+       0 | Type:Stereo In? 
+       1 | Type:Mono In?   
+       2 | Type:Panning LR?
+       3 | Type:Panning RL?
+--- FX2 idx 1 Time L range=[-2032,10000] orig=420
+--- FX2 idx 2 Time R range=[-2032,10000] orig=280
+--- FX2 idx 3 Feedback range=[0,100] orig=50
+--- FX2 idx 4 HF Damp range=[5,100] orig=100
+--- FX2 idx 5 Pan Spread range=[0,100] orig=100
+--- FX2 idx 6 Wet Level range=[0,100] orig=28
+--- FX2 idx 7 Dry Level range=[0,100] orig=100
+--- FX2 idx 8 Mod Rate range=[1,100] orig=10
+--- FX2 idx 9 Mod Depth range=[0,100] orig=20
+--- FX2 idx 10 Mod Phase range=[0,180] orig=180
+--- FX2 idx 11 PressMode range=[0,6] orig=4
+--- FX2 idx 12 PressSens range=[0,100] orig=50
+--- FX2 idx 13 PressAtck range=[0,1000] orig=100
+--- FX2 idx 14 PressRele range=[0,3000] orig=100
+--- FX2 idx 15 Delay Sw range=[0,1] orig=1
+--- FX2 idx 16 FxMtrx range=[0,1] orig=0
+--- FX2 idx 17 AmbienceType range=[0,5] orig=4
+       0 | AmbienceType:OFF
+       1 | AmbienceType:A? 
+       2 | AmbienceType:B? 
+       3 | AmbienceType:C? 
+       4 | AmbienceType:D? 
+       5 | AmbienceType:E? 
+--- FX2 idx 18 Ambience Lev range=[0,100] orig=16
+--- FX2 idx 19 Comp Sw range=[0,1] orig=1
+--- FX2 idx 20 CompThrs range=[-480,0] orig=-80
+--- FX2 idx 21 CompRatio range=[1,20] orig=10
+--- FX2 idx 22 CompKnee range=[0,2] orig=0
+--- FX2 idx 23 CompAtck range=[0,3000] orig=20
+--- FX2 idx 24 CompRele range=[0,10000] orig=90
+--- FX2 idx 25 CompGain range=[-240,240] orig=15
+=== FX3 tone=CanterbryCho
+--- FX3 idx 0 Type range=[0,5] orig=3
+       0 | Type:2PHASE NORM
+       1 | Type:2PHASE XMIX
+       2 | Type:3PHASE NORM
+       3 | Type:3PHASE XMIX
+       4 | Type:6PHASE NORM
+       5 | Type:6PHASE XMIX
+--- FX3 idx 1 Mod Rate range=[1,100] orig=6
+--- FX3 idx 2 Mod Depth range=[0,100] orig=100
+--- FX3 idx 3 Mod Phase range=[0,180] orig=180
+--- FX3 idx 4 Wet HPF range=[20,500] orig=500
+--- FX3 idx 5 Wet LPF range=[1000,20000] orig=7551
+--- FX3 idx 6 Wet Level range=[0,100] orig=100
+--- FX3 idx 7 Dry Level range=[0,100] orig=80
+--- FX3 idx 8 Chorus Sw range=[0,1] orig=1
+--- FX3 idx 9 FxMtrx range=[0,1] orig=0
+--- FX3 idx 10 AmbienceType range=[0,5] orig=0
+--- FX3 idx 11 Ambience Lev range=[0,100] orig=70
+--- FX3 idx 12 Comp Sw range=[0,1] orig=0
+--- FX3 idx 13 CompThrs range=[-480,0] orig=-120
+--- FX3 idx 14 CompRatio range=[1,20] orig=10
+--- FX3 idx 15 CompKnee range=[0,2] orig=1
+--- FX3 idx 16 CompAtck range=[0,3000] orig=0
+--- FX3 idx 17 CompRele range=[0,10000] orig=300
+--- FX3 idx 18 CompGain range=[-240,240] orig=0
+=== FX4 tone=WormSwormFlg
+--- FX4 idx 0 RATE range=[0,100] orig=51
+--- FX4 idx 1 DEPTH range=[0,100] orig=55
+--- FX4 idx 2 MANUAL range=[0,100] orig=70
+--- FX4 idx 3 RESO range=[-100,100] orig=85
+--- FX4 idx 4 XFB range=[-100,100] orig=40
+--- FX4 idx 5 MOD PH range=[0,180] orig=180
+--- FX4 idx 6 PressMode range=[0,5] orig=2
+--- FX4 idx 7 PressSens range=[0,100] orig=50
+--- FX4 idx 8 PressAtck range=[0,1000] orig=100
+--- FX4 idx 9 PressRele range=[0,3000] orig=100
+--- FX4 idx 10 Flanger Sw range=[0,1] orig=1
+--- FX4 idx 11 FxMtrx range=[0,1] orig=0
+--- FX4 idx 12 AmbienceType range=[0,5] orig=0
+--- FX4 idx 13 Ambience Lev range=[0,100] orig=70
+--- FX4 idx 14 Comp Sw range=[0,1] orig=0
+--- FX4 idx 15 CompThrs range=[-480,0] orig=-120
+--- FX4 idx 16 CompRatio range=[1,20] orig=10
+--- FX4 idx 17 CompKnee range=[0,2] orig=1
+--- FX4 idx 18 CompAtck range=[0,3000] orig=0
+--- FX4 idx 19 CompRele range=[0,10000] orig=300
+--- FX4 idx 20 CompGain range=[-240,240] orig=0
+=== FX5 tone=SequentialPh
+--- FX5 idx 0 RATE range=[0,100] orig=50
+--- FX5 idx 1 DEPTH range=[0,100] orig=45
+--- FX5 idx 2 MANUAL range=[0,100] orig=50
+--- FX5 idx 3 RESO range=[-100,100] orig=80
+--- FX5 idx 4 XFB range=[-100,100] orig=20
+--- FX5 idx 5 MOD_PH range=[0,180] orig=180
+--- FX5 idx 6 STAGE range=[1,32] orig=4
+--- FX5 idx 7 PressMode range=[0,5] orig=0
+--- FX5 idx 8 PressSens range=[0,100] orig=50
+--- FX5 idx 9 PressAtck range=[0,1000] orig=100
+--- FX5 idx 10 PressRele range=[0,3000] orig=100
+--- FX5 idx 11 Phaser Sw range=[0,1] orig=1
+--- FX5 idx 12 FxMtrx range=[0,1] orig=0
+--- FX5 idx 13 AmbienceType range=[0,5] orig=0
+--- FX5 idx 14 Ambience Lev range=[0,100] orig=70
+--- FX5 idx 15 Comp Sw range=[0,1] orig=1
+--- FX5 idx 16 CompThrs range=[-480,0] orig=-120
+--- FX5 idx 17 CompRatio range=[1,20] orig=10
+--- FX5 idx 18 CompKnee range=[0,2] orig=1
+--- FX5 idx 19 CompAtck range=[0,3000] orig=0
+--- FX5 idx 20 CompRele range=[0,10000] orig=300
+--- FX5 idx 21 CompGain range=[-240,240] orig=0
+=== FX6 tone=GummyWh/Wah
+--- FX6 idx 0 Type range=[0,4] orig=0
+       0 | Type:CRYBABY?   
+       1 | Type:BPF?       
+       2 | Type:LPF?       
+       3 | Type:HPF?       
+       4 | Type:PEAKING?   
+--- FX6 idx 1 Manual Freq range=[0,100] orig=80
+--- FX6 idx 2 Freq Min range=[100,1000] orig=250
+--- FX6 idx 3 Freq Max range=[1000,5000] orig=3150
+--- FX6 idx 4 Filter Q range=[10,300] orig=200
+--- FX6 idx 5 PressSw range=[0,1] orig=1
+--- FX6 idx 6 PressSens range=[0,100] orig=70
+--- FX6 idx 7 PressAtck range=[0,1000] orig=40
+--- FX6 idx 8 PressRele range=[0,3000] orig=80
+--- FX6 idx 9 Wah Sw range=[0,1] orig=1
+--- FX6 idx 10 FxMtrx range=[0,1] orig=1
+--- FX6 idx 11 AmbienceType range=[0,5] orig=0
+--- FX6 idx 12 Ambience Lev range=[0,100] orig=70
+--- FX6 idx 13 Comp Sw range=[0,1] orig=0
+--- FX6 idx 14 CompThrs range=[-480,0] orig=-120
+--- FX6 idx 15 CompRatio range=[1,20] orig=10
+--- FX6 idx 16 CompKnee range=[0,2] orig=1
+--- FX6 idx 17 CompAtck range=[0,3000] orig=0
+--- FX6 idx 18 CompRele range=[0,10000] orig=300
+--- FX6 idx 19 CompGain range=[-240,240] orig=0
+=== FX7 tone=AquaFrstTDLY
+--- FX7 idx 0 Time 1 range=[-2032,12000] orig=2000
+--- FX7 idx 1 Time 2 range=[-2032,12000] orig=2600
+--- FX7 idx 2 Time 3 range=[-2032,12000] orig=3200
+--- FX7 idx 3 Time 4 range=[-2032,12000] orig=4500
+--- FX7 idx 4 Time 5 range=[-2032,12000] orig=5700
+--- FX7 idx 5 Time 6 range=[-2032,12000] orig=6500
+--- FX7 idx 6 Time 7 range=[-2032,12000] orig=7600
+--- FX7 idx 7 Time 8 range=[-2032,12000] orig=8900
+--- FX7 idx 8 Time 9 range=[-2032,12000] orig=9900
+--- FX7 idx 9 Time 10 range=[-2032,12000] orig=11000
+--- FX7 idx 10 Time FB range=[-2032,12000] orig=5000
+--- FX7 idx 11 Lev 1 range=[0,127] orig=48
+--- FX7 idx 12 Lev 2 range=[0,127] orig=60
+--- FX7 idx 13 Lev 3 range=[0,127] orig=54
+--- FX7 idx 14 Lev 4 range=[0,127] orig=51
+--- FX7 idx 15 Lev 5 range=[0,127] orig=45
+--- FX7 idx 16 Lev 6 range=[0,127] orig=46
+--- FX7 idx 17 Lev 7 range=[0,127] orig=41
+--- FX7 idx 18 Lev 8 range=[0,127] orig=40
+--- FX7 idx 19 Lev 9 range=[0,127] orig=30
+--- FX7 idx 20 Lev 10 range=[0,127] orig=30
+--- FX7 idx 21 Pan 1 range=[1,127] orig=49
+--- FX7 idx 22 Pan 2 range=[1,127] orig=79
+--- FX7 idx 23 Pan 3 range=[1,127] orig=36
+--- FX7 idx 24 Pan 4 range=[1,127] orig=92
+--- FX7 idx 25 Pan 5 range=[1,127] orig=24
+--- FX7 idx 26 Pan 6 range=[1,127] orig=104
+--- FX7 idx 27 Pan 7 range=[1,127] orig=14
+--- FX7 idx 28 Pan 8 range=[1,127] orig=114
+--- FX7 idx 29 Pan 9 range=[1,127] orig=1
+--- FX7 idx 30 Pan 10 range=[1,127] orig=127
+--- FX7 idx 31 Feedback range=[0,100] orig=65
+--- FX7 idx 32 HF Damp range=[5,100] orig=60
+--- FX7 idx 33 Pan Spread range=[0,100] orig=100
+--- FX7 idx 34 Wet Level range=[0,100] orig=100
+--- FX7 idx 35 Dry Level range=[0,100] orig=85
+--- FX7 idx 36 PressMode range=[0,4] orig=3
+--- FX7 idx 37 PressSens range=[0,100] orig=50
+--- FX7 idx 38 PressAtck range=[0,1000] orig=50
+--- FX7 idx 39 PressRele range=[0,3000] orig=500
+--- FX7 idx 40 Delay Sw range=[0,1] orig=1
+--- FX7 idx 41 FxMtrx range=[0,1] orig=0
+--- FX7 idx 42 AmbienceType range=[0,5] orig=5
+--- FX7 idx 43 Ambience Lev range=[0,100] orig=36
+--- FX7 idx 44 Comp Sw range=[0,1] orig=1
+--- FX7 idx 45 CompThrs range=[-480,0] orig=-60
+--- FX7 idx 46 CompRatio range=[1,20] orig=10
+--- FX7 idx 47 CompKnee range=[0,2] orig=1
+--- FX7 idx 48 CompAtck range=[0,3000] orig=0
+--- FX7 idx 49 CompRele range=[0,10000] orig=360
+--- FX7 idx 50 CompGain range=[-240,240] orig=0
+=== FX8 tone=SpaceRHypAsa
+--- FX8 idx 0 Azimuth range=[-29,30] orig=0
+--- FX8 idx 1 AutoRevo range=[0,2] orig=1
+       0 | AutoRevo:OFF?   
+       1 | AutoRevo:RIGHT? 
+       2 | AutoRevo:LEFT?  
+--- FX8 idx 2 RevoSpeed range=[1,600] orig=18
+--- FX8 idx 3 DlySw range=[0,1] orig=1
+--- FX8 idx 4 DlyTime range=[-2032,12000] orig=4000
+--- FX8 idx 5 DlyFeedback range=[0,100] orig=40
+--- FX8 idx 6 DlyWetLev range=[0,100] orig=53
+--- FX8 idx 7 DlyDryLev range=[0,100] orig=100
+--- FX8 idx 8 PressMode range=[0,4] orig=0
+--- FX8 idx 9 PressSens range=[0,100] orig=50
+--- FX8 idx 10 PressAtck range=[0,1000] orig=100
+--- FX8 idx 11 PressRele range=[0,3000] orig=100
+--- FX8 idx 12 Phones range=[0,1] orig=0
+--- FX8 idx 13 SpaceR Sw range=[0,1] orig=1
+--- FX8 idx 14 FxMtrx range=[0,1] orig=1
+--- FX8 idx 15 Comp Sw range=[0,1] orig=0
+--- FX8 idx 16 CompThrs range=[-480,0] orig=-120
+--- FX8 idx 17 CompRatio range=[1,20] orig=10
+--- FX8 idx 18 CompKnee range=[0,2] orig=1
+--- FX8 idx 19 CompAtck range=[0,3000] orig=50
+--- FX8 idx 20 CompRele range=[0,10000] orig=300
+--- FX8 idx 21 CompGain range=[-240,240] orig=0
+=== FX9 tone=SpaceZMadTem
+--- FX9 idx 0 Spread range=[1,10] orig=10
+--- FX9 idx 1 DlySw range=[0,1] orig=1
+--- FX9 idx 2 DTime L range=[-2032,12000] orig=2500
+--- FX9 idx 3 DTime R range=[-2032,12000] orig=5000
+--- FX9 idx 4 DTimeFB range=[-2032,12000] orig=9000
+--- FX9 idx 5 DlyFeedback range=[0,100] orig=36
+--- FX9 idx 6 DlyWetLev range=[0,100] orig=25
+--- FX9 idx 7 DlyDryLev range=[0,100] orig=100
+--- FX9 idx 8 Phones range=[0,1] orig=0
+--- FX9 idx 9 SpaceZ Sw range=[0,1] orig=1
+--- FX9 idx 10 FxMtrx range=[0,1] orig=1
+--- FX9 idx 11 Comp Sw range=[0,1] orig=1
+--- FX9 idx 12 CompThrs range=[-480,0] orig=-120
+--- FX9 idx 13 CompRatio range=[1,20] orig=10
+--- FX9 idx 14 CompKnee range=[0,2] orig=1
+--- FX9 idx 15 CompAtck range=[0,3000] orig=50
+--- FX9 idx 16 CompRele range=[0,10000] orig=300
+--- FX9 idx 17 CompGain range=[-240,240] orig=0

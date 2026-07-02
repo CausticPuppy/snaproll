@@ -1,0 +1,72 @@
+=== FX2 tone=TuTuDrmDly
+--- FX2 idx 1 Time L orig=420
+     -64 | Time L:  4/ 64  
+     -96 | Time L:  4/ 96  
+    -128 | Time L:  4/128  
+    -256 | Time L: .8/  0  
+    -512 | Time L:  8/  0  
+   -1024 | Time L: 16/  0  
+   -2032 | Time L:T16/240  
+--- FX2 idx 11 PressMode orig=4
+       0 | PressMode:OFF?  
+       1 | PressMode:MUTE? 
+       2 | PressMode:LEVEL?
+       3 | PressMode:SEND? 
+       4 | PressMode:SPREAD
+       5 | PressMode:TIME++
+       6 | PressMode:TIME--
+=== FX4 tone=WormSwormFlg
+--- FX4 idx 6 PressMode orig=2
+       0 | PressMode:OFF?  
+       1 | PressMode:DEPTH?
+       2 | PressMode:MANU++
+       3 | PressMode:MANU--
+       4 | PressMode:RATE++
+       5 | PressMode:RATE--
+=== FX5 tone=SequentialPh
+--- FX5 idx 7 PressMode orig=0
+       0 | PressMode:OFF?  
+       1 | PressMode:DEPTH?
+       2 | PressMode:MANU++
+       3 | PressMode:MANU--
+       4 | PressMode:RATE++
+       5 | PressMode:RATE--
+=== FX7 tone=AquaFrstTDLY
+--- FX7 idx 0 Time 1 orig=2000
+     -64 | Time 1 :  4/ 64 
+     -96 | Time 1 :  4/ 96 
+    -128 | Time 1 :  4/128 
+    -256 | Time 1 : .8/  0 
+    -512 | Time 1 :  8/  0 
+   -1024 | Time 1 : 16/  0 
+   -2032 | Time 1 :T16/240 
+--- FX7 idx 36 PressMode orig=3
+       0 | PressMode:OFF?  
+       1 | PressMode:MUTE? 
+       2 | PressMode:LEVEL?
+       3 | PressMode:SEND? 
+       4 | PressMode:SPREAD
+=== FX8 tone=SpaceRHypAsa
+--- FX8 idx 4 DlyTime orig=4000
+     -64 | DlyTime:  4/ 64 
+     -96 | DlyTime:  4/ 96 
+    -128 | DlyTime:  4/128 
+    -256 | DlyTime: .8/  0 
+    -512 | DlyTime:  8/  0 
+   -1024 | DlyTime: 16/  0 
+   -2032 | DlyTime:T16/240 
+--- FX8 idx 8 PressMode orig=0
+       0 | PressMode:OFF?  
+       1 | PressMode:Turn R
+       2 | PressMode:Turn L
+       3 | PressMode:Revo++
+       4 | PressMode:Revo--
+=== FX9 tone=SpaceZMadTem
+--- FX9 idx 2 DTime L orig=2500
+     -64 | DTime L:  4/ 64 
+     -96 | DTime L:  4/ 96 
+    -128 | DTime L:  4/128 
+    -256 | DTime L: .8/  0 
+    -512 | DTime L:  8/  0 
+   -1024 | DTime L: 16/  0 
+   -2032 | DTime L:T16/240 

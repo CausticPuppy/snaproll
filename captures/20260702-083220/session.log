@@ -1,0 +1,17 @@
+aframe-capture session 20260702-083220
+target: /dev/cu.usbserial-0001
+output: /Users/jason/Documents/ATV aFrame/captures/20260702-083220
+
+== GetVersion
+  VER.2.00-BLD.001 2019/02/28 17:58:50
+== Enter external edit mode
+== Sweep effect parameters (algos 1-9)
+== sweeping FX2 (2 params)
+== sweeping FX4 (1 params)
+== sweeping FX5 (1 params)
+== sweeping FX7 (2 params)
+== sweeping FX8 (2 params)
+== sweeping FX9 (1 params)
+== Restore selections
+  saved param_sweep.txt (2032 bytes)
+== Leave external edit mode

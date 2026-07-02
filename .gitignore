@@ -6,7 +6,10 @@
 # ATV's reference PDFs are copyrighted docs — keep them out of the repo.
 *.pdf
 
-# Capture sessions stay local, except the one the regression tests decode
-# (protocol reverse-engineering evidence from the VER.2.00 device).
+# Capture sessions stay local, except the ones the regression tests use
+# (protocol + parameter-map evidence from the VER.2.00 device).
 captures/*
 !captures/20260701-213259/
+!captures/20260702-080734/
+!captures/20260702-082318/
+!captures/20260702-083220/

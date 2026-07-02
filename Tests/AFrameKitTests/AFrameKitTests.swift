@@ -82,6 +82,121 @@ final class ModelCodecTests: XCTestCase {
     }
 }
 
+final class ParameterMapTests: XCTestCase {
+    func testTableSizesMatchHardware() {
+        // prm_num values reported by VER.2.00 firmware (capture 20260701-213259).
+        XCTAssertEqual(ParameterMap.instrument.count, 79)
+        let expected = [1: 23, 2: 26, 3: 19, 4: 21, 5: 22, 6: 20, 7: 51, 8: 22, 9: 18]
+        for (algo, count) in expected {
+            XCTAssertEqual(ParameterMap.effects[algo]?.count, count, "algo \(algo)")
+        }
+        XCTAssertEqual(Set(ParameterMap.effects.keys), Set(ParameterMap.effectAlgoNames.keys))
+    }
+
+    func testIndicesAreContiguous() {
+        XCTAssertEqual(ParameterMap.instrument.map(\.index), Array(0..<79))
+        for (algo, params) in ParameterMap.effects {
+            XCTAssertEqual(params.map(\.index), Array(0..<params.count), "algo \(algo)")
+        }
+    }
+
+    func testRangeTableSizes() {
+        XCTAssertEqual(ParameterMap.instrumentRanges.count, 79)
+        for (algo, params) in ParameterMap.effects {
+            XCTAssertEqual(ParameterMap.effectRanges[algo]?.count, params.count, "algo \(algo)")
+        }
+    }
+
+    func testRangesMatchSweepCapture() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260702-082318/param_sweep.txt")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("hardware sweep capture not available")
+        }
+        var table: [ClosedRange<Int>]?
+        var cursor = 0
+        var checked = 0
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("=== INST") {
+                table = ParameterMap.instrumentRanges
+                cursor = 0
+            } else if line.hasPrefix("=== FX") {
+                table = ParameterMap.effectRanges[Int(line.dropFirst(6).prefix(1))!]
+                cursor = 0
+            } else if line.hasPrefix("--- "), let ranges = table {
+                guard let open = line.range(of: "range=["),
+                      let close = line.range(of: "]", range: open.upperBound..<line.endIndex)
+                else { continue }
+                let nums = line[open.upperBound..<close.lowerBound].split(separator: ",").compactMap { Int($0) }
+                XCTAssertEqual(ranges[cursor], nums[0]...nums[1], "\(line)")
+                cursor += 1
+                checked += 1
+            }
+        }
+        XCTAssertEqual(checked, 301)
+    }
+
+    func testCodedDisplaysCoverHardwareRanges() {
+        // Every enumerated label table must exactly cover the accepted value
+        // range the hardware reported; every onOff must be exactly 0...1.
+        func check(_ params: [ParameterDescriptor], _ ranges: [ClosedRange<Int>], tag: String) {
+            for (p, range) in zip(params, ranges) {
+                switch p.display {
+                case .enumerated(let labels):
+                    XCTAssertEqual(Set(labels.keys), Set(range), "\(tag) \(p.name)")
+                case .onOff:
+                    XCTAssertEqual(range, 0...1, "\(tag) \(p.name)")
+                case .centerEdge:
+                    XCTAssertEqual(range, 0...100, "\(tag) \(p.name)")
+                default:
+                    break
+                }
+            }
+        }
+        check(ParameterMap.instrument, ParameterMap.instrumentRanges, tag: "inst")
+        for (algo, params) in ParameterMap.effects {
+            check(params, ParameterMap.effectRanges[algo]!, tag: "fx\(algo)")
+        }
+    }
+
+    func testNamesMatchHardwareLCDProbe() throws {
+        // Regression against the device's own LCD rendering of every
+        // parameter (aframe-capture --probe). Skips if the capture is absent.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260702-080734/param_probe.txt")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("hardware probe capture not available")
+        }
+        // Known firmware LCD typo: Flanger's switch prints "Flnager Sw".
+        let lcdAliases = ["Flnager Sw": "Flanger Sw"]
+
+        var current: [ParameterDescriptor]?
+        var checked = 0
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("=== INST") {
+                current = ParameterMap.instrument
+            } else if line.hasPrefix("=== FX") {
+                let algo = Int(line.dropFirst(6).prefix(1))!
+                current = ParameterMap.effects[algo]
+            } else if let params = current {
+                // "I  4 =     40 | ?Bf:SnappyFramey | MainDcay: 4.0sec"
+                let cols = line.split(separator: "|")
+                guard cols.count == 3,
+                      let idx = Int(cols[0].dropFirst(1).prefix(4).trimmingCharacters(in: .whitespaces))
+                else { continue }
+                var lcdName = String(cols[2].split(separator: ":").first ?? "")
+                    .trimmingCharacters(in: .whitespaces)
+                lcdName = lcdAliases[lcdName] ?? lcdName
+                XCTAssertEqual(params[idx].name, lcdName, "index \(idx) in \(params[idx].section)")
+                checked += 1
+            }
+        }
+        XCTAssertEqual(checked, 79 + 222, "expected every probed parameter to be checked")
+    }
+}
+
 final class ClientAgainstMockTests: XCTestCase {
     var mock: MockAFrame!
     var client: AFrameClient!
