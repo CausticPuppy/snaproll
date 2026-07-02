@@ -5,6 +5,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     private let session = EditorSession()
     private let sidebarVC = SidebarViewController()
     private let editorVC = EditorViewController()
+    private var sidebarSplitItem: NSSplitViewItem?
 
     // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -35,9 +36,16 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
 
     private func buildContent() {
         let split = NSSplitViewController()
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        // A plain item (not `sidebarWithViewController:`) so the pane never
+        // auto-collapses when the window is narrowed; it's toggled only by the
+        // toolbar button. High holding priority keeps its width fixed while the
+        // detail pane absorbs window resizing.
+        let sidebarItem = NSSplitViewItem(viewController: sidebarVC)
+        sidebarItem.canCollapse = true
         sidebarItem.minimumThickness = 200
         sidebarItem.maximumThickness = 300
+        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(260)
+        sidebarSplitItem = sidebarItem
         split.addSplitViewItem(sidebarItem)
 
         // Detail area: editor + status bar
@@ -120,11 +128,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
 
     // MARK: Toolbar delegate
 
+    private static let sidebarItemID = NSToolbarItem.Identifier("sidebarToggle")
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.connectionItemID, .flexibleSpace, Self.saveItemID]
+        [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace, Self.saveItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -134,6 +143,19 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         switch id {
+        case Self.sidebarItemID:
+            let button = NSButton(
+                image: NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "Toggle Sidebar")!,
+                target: self, action: #selector(toggleSidebar))
+            button.bezelStyle = .texturedRounded
+            button.imagePosition = .imageOnly
+            button.keyEquivalent = "s"
+            button.keyEquivalentModifierMask = [.control, .command]
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = button
+            item.label = "Sidebar"
+            item.toolTip = "Show or hide the tone browser (⌃⌘S)"
+            return item
         case Self.connectionItemID:
             portPopup.controlSize = .regular
             portPopup.widthAnchor.constraint(equalToConstant: 210).isActive = true
@@ -262,6 +284,11 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
         connectButton.isEnabled = false
         statusLabel.stringValue = "Connecting…"
         session.connect(transport: transport)
+    }
+
+    @objc private func toggleSidebar() {
+        guard let item = sidebarSplitItem else { return }
+        item.animator().isCollapsed.toggle()
     }
 
     @objc func saveCurrentTone() {

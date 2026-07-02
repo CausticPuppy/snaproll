@@ -43,7 +43,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         stack.edgeInsets = NSEdgeInsets(top: 10, left: 10, bottom: 0, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let container = NSView()
+        // A plain split-view item (chosen so the pane never auto-collapses on
+        // resize) loses the system sidebar's translucency, so restore it here.
+        let container = NSVisualEffectView()
+        container.material = .sidebar
+        container.blendingMode = .behindWindow
         container.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: container.topAnchor),
