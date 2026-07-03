@@ -11,6 +11,7 @@ final class EditorSession {
         case names(ToneSelect, [String])
         case toneLoaded(ToneSelect, num: Int, tone: ToneData)
         case saved(ToneSelect, num: Int)
+        case meters(peak: PeakLevels, pressure: PressureLevels)
         case status(String)
         case error(String)
     }
@@ -31,6 +32,12 @@ final class EditorSession {
     private var flushScheduled = false
 
     private(set) var isConnected = false
+
+    // Real-time meter polling (~30 Hz). aFrame has no push channel, so live
+    // pressure/level monitoring is a poll loop interleaved with edits on `queue`.
+    private static let meterInterval = 1.0 / 30.0
+    private var monitoring = false
+    private var meterFailures = 0
 
     private func emit(_ event: Event) {
         DispatchQueue.main.async { self.onEvent?(event) }
@@ -74,7 +81,48 @@ final class EditorSession {
             self.transport = nil
             self.client = nil
             self.isConnected = false
+            self.monitoring = false
             self.emit(.disconnected)
+        }
+    }
+
+    // MARK: Real-time monitoring
+
+    /// Begins polling the input/output peak meters (aFG8) and pressure
+    /// pitch/mute levels (aFG9), emitting `.meters` at ~30 Hz. No-op until
+    /// connected; safe to call repeatedly.
+    func startMonitoring() {
+        queue.async {
+            guard self.isConnected, !self.monitoring else { return }
+            self.monitoring = true
+            self.meterFailures = 0
+            self.pollMeters()
+        }
+    }
+
+    func stopMonitoring() {
+        queue.async { self.monitoring = false }
+    }
+
+    private func pollMeters() {
+        guard monitoring, isConnected, let client else { return }
+        do {
+            let peak = try client.getPeakLevel()
+            let pressure = try client.getPressure()
+            meterFailures = 0
+            emit(.meters(peak: peak, pressure: pressure))
+        } catch {
+            // Tolerate the odd hiccup; give up after a few in a row so a dead
+            // link doesn't keep stalling the queue for the response timeout.
+            meterFailures += 1
+            if meterFailures >= 3 {
+                monitoring = false
+                emit(.status("Monitoring stopped: \(error.localizedDescription)"))
+                return
+            }
+        }
+        queue.asyncAfter(deadline: .now() + Self.meterInterval) { [weak self] in
+            self?.pollMeters()
         }
     }
 

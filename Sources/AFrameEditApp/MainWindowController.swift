@@ -6,6 +6,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     private let sidebarVC = SidebarViewController()
     private let editorVC = EditorViewController()
     private var sidebarSplitItem: NSSplitViewItem?
+    private var monitorWC: MonitorWindowController?
 
     // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -130,10 +131,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
 
     private static let sidebarItemID = NSToolbarItem.Identifier("sidebarToggle")
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
+    private static let monitorItemID = NSToolbarItem.Identifier("monitor")
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace, Self.saveItemID]
+        [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace,
+         Self.monitorItemID, Self.saveItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -168,6 +171,17 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
             let item = NSToolbarItem(itemIdentifier: id)
             item.view = stack
             item.label = "Connection"
+            return item
+        case Self.monitorItemID:
+            let button = NSButton(
+                image: NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "Monitor")!,
+                target: self, action: #selector(showMonitor))
+            button.bezelStyle = .texturedRounded
+            button.imagePosition = .imageOnly
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = button
+            item.label = "Monitor"
+            item.toolTip = "Open the real-time pressure / level monitor"
             return item
         case Self.saveItemID:
             saveButton.target = self
@@ -234,6 +248,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
                 self.saveButton.isEnabled = true
                 self.sidebarVC.setSelected(num: group.instNum, for: .instrument)
                 self.sidebarVC.setSelected(num: group.effectNum, for: .effect)
+                if self.monitorWC?.window?.isVisible == true {
+                    self.session.startMonitoring()
+                }
             case .disconnected:
                 self.statusDot.textColor = .systemRed
                 self.statusLabel.stringValue = "Not connected"
@@ -243,11 +260,14 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
                 self.saveButton.isEnabled = false
                 self.sidebarVC.clear()
                 self.editorVC.clear()
+                self.monitorWC?.setIdle("Not connected")
             case .names(let sel, let list):
                 self.sidebarVC.setNames(list, for: sel)
             case .toneLoaded(let sel, let num, let tone):
                 self.editorVC.showTone(tone, num: num, for: sel)
                 self.sidebarVC.setSelected(num: num, for: sel)
+            case .meters(let peak, let pressure):
+                self.monitorWC?.update(peak: peak, pressure: pressure)
             case .saved(let sel, let num):
                 let kind = sel == .instrument ? "instrument" : "effect"
                 self.statusLabel.stringValue =
@@ -289,6 +309,20 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     @objc private func toggleSidebar() {
         guard let item = sidebarSplitItem else { return }
         item.animator().isCollapsed.toggle()
+    }
+
+    @objc private func showMonitor() {
+        if monitorWC == nil {
+            let wc = MonitorWindowController()
+            wc.onClose = { [weak self] in self?.session.stopMonitoring() }
+            monitorWC = wc
+        }
+        monitorWC?.showWindow(nil)
+        if session.isConnected {
+            session.startMonitoring()
+        } else {
+            monitorWC?.setIdle("Waiting for connection…")
+        }
     }
 
     @objc func saveCurrentTone() {

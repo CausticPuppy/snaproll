@@ -323,6 +323,24 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(try client.getMode(), .home)
     }
 
+    func testMeterReads() throws {
+        // aFG8 → 4 input/output peaks, aFG9 → pressure pitch/mute. Values are
+        // small non-negative steps; the mock animates them across calls.
+        let peak = try client.getPeakLevel()
+        for v in [peak.inCenter, peak.inEdge, peak.outL, peak.outR] {
+            XCTAssertTrue((0...15).contains(v), "peak \(v) out of 0...15")
+        }
+        let pressure = try client.getPressure()
+        XCTAssertGreaterThanOrEqual(pressure.pitch, 0)
+        XCTAssertGreaterThanOrEqual(pressure.mute, 0)
+        // Successive reads advance (the mock's phase changes), proving the poll
+        // loop would see live movement.
+        let peak2 = try client.getPeakLevel()
+        XCTAssertNotEqual(PeakLevels(inCenter: peak.inCenter, inEdge: peak.inEdge,
+                                     outL: peak.outL, outR: peak.outR),
+                          peak2)
+    }
+
     func testPanelStateRoundTrip() throws {
         try client.setLCD(addr: 0, text: "HELLO AFRAME")
         XCTAssertEqual(try client.getLCD(addr: 0, count: 12), "HELLO AFRAME")
