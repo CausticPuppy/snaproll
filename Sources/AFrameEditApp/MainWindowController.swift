@@ -1,7 +1,8 @@
 import AppKit
 import AFrameKit
+import UniformTypeIdentifiers
 
-final class MainWindowController: NSWindowController, NSToolbarDelegate {
+final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuItemValidation {
     private let session = EditorSession()
     private let sidebarVC = SidebarViewController()
     private let editorVC = EditorViewController()
@@ -268,6 +269,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
                 self.sidebarVC.setSelected(num: num, for: sel)
             case .meters(let peak, let pressure):
                 self.monitorWC?.update(peak: peak, pressure: pressure)
+            case .projectSaved(let name, let url):
+                let label = name.isEmpty ? url.lastPathComponent : "“\(name)” to \(url.lastPathComponent)"
+                self.statusLabel.stringValue = "Saved project \(label)"
+            case .projectLoaded(let name, let backup):
+                let note = backup.map { " (previous project backed up as \($0.lastPathComponent))" } ?? ""
+                self.statusLabel.stringValue = "Loaded project “\(name)”\(note)"
             case .saved(let sel, let num):
                 let kind = sel == .instrument ? "instrument" : "effect"
                 self.statusLabel.stringValue =
@@ -322,6 +329,62 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
             session.startMonitoring()
         } else {
             monitorWC?.setIdle("Waiting for connection…")
+        }
+    }
+
+    // MARK: Project file load / save
+
+    private static let projectType = UTType(filenameExtension: "prj") ?? .data
+
+    @objc func saveProjectAs(_ sender: Any?) {
+        guard session.isConnected, let window else { NSSound.beep(); return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [Self.projectType]
+        panel.nameFieldStringValue = "aFrame Project.prj"
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] resp in
+            guard resp == .OK, let url = panel.url else { return }
+            self?.session.saveProject(to: url)
+        }
+    }
+
+    @objc func openProject(_ sender: Any?) {
+        guard session.isConnected, let window else { NSSound.beep(); return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [Self.projectType]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.beginSheetModal(for: window) { [weak self] resp in
+            guard resp == .OK, let url = panel.url else { return }
+            self?.confirmAndLoadProject(url)
+        }
+    }
+
+    /// Loading a project is destructive — it overwrites the whole device
+    /// project — so require an explicit confirmation first.
+    private func confirmAndLoadProject(_ url: URL) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Replace the aFrame's entire project?"
+        alert.informativeText = """
+            Loading “\(url.lastPathComponent)” overwrites all 160 patches and the \
+            group map on the connected aFrame. The current project is backed up \
+            first (to Application Support / aFrame Edit / Backups).
+            """
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { [weak self] resp in
+            if resp == .alertFirstButtonReturn { self?.session.loadProject(from: url) }
+        }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(openProject(_:)), #selector(saveProjectAs(_:)):
+            return session.isConnected
+        default:
+            return true
         }
     }
 

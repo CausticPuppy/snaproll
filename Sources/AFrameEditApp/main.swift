@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let controller = MainWindowController()
         mainWindowController = controller
+        // Build the menu now that the controller exists, so File-menu items can
+        // target it directly (project load/save live on the window controller).
+        NSApp.mainMenu = buildMainMenu(fileMenuTarget: controller)
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -21,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // Minimal main menu so ⌘Q works when launched via `swift run`.
-func buildMainMenu() -> NSMenu {
+func buildMainMenu(fileMenuTarget: AnyObject? = nil) -> NSMenu {
     let mainMenu = NSMenu()
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
@@ -34,6 +37,16 @@ func buildMainMenu() -> NSMenu {
                     action: #selector(NSApplication.terminate(_:)),
                     keyEquivalent: "q")
     appMenuItem.submenu = appMenu
+
+    let fileMenuItem = NSMenuItem()
+    mainMenu.addItem(fileMenuItem)
+    let fileMenu = NSMenu(title: "File")
+    let open = fileMenu.addItem(withTitle: "Open Project…",
+                                action: #selector(MainWindowController.openProject(_:)), keyEquivalent: "o")
+    let saveAs = fileMenu.addItem(withTitle: "Save Project As…",
+                                  action: #selector(MainWindowController.saveProjectAs(_:)), keyEquivalent: "S")
+    for item in [open, saveAs] { item.target = fileMenuTarget }
+    fileMenuItem.submenu = fileMenu
 
     let editMenuItem = NSMenuItem()
     mainMenu.addItem(editMenuItem)
@@ -57,7 +70,8 @@ func applyAppIcon(to app: NSApplication) {
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.mainMenu = buildMainMenu()
+// The full menu (with the File menu targeting the window controller) is
+// installed in applicationDidFinishLaunching once the controller exists.
 applyAppIcon(to: app)
 app.setActivationPolicy(.regular)
 app.run()

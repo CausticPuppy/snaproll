@@ -414,6 +414,25 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(reread.instPatch[0].name, "NewTone")
     }
 
+    func testProjectFileFormatIsDecodedImage() throws {
+        // The `.prj` file the load/save UI reads and writes is the decoded
+        // 0x7F00 image (identical to legacy aFrameEdit's format). Verify our
+        // codec accepts such a raw image directly and re-encodes byte-exact,
+        // using the committed device-decoded capture if present.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260701-213259/project_decoded.bin")
+        guard let image = try? Data(contentsOf: url) else {
+            throw XCTSkip("hardware capture not available")
+        }
+        XCTAssertEqual(image.count, DSPProject.byteSize)  // 0x7F00 = 32512
+        let project = try DSPProject.decode(image, verifyChecksum: true)
+        XCTAssertEqual(project.signature, "ATV Corporation")
+        // A load re-compresses the exact file bytes; that must survive the
+        // device's LZSS round trip byte-for-byte.
+        XCTAssertEqual(try AFrameLZ.decode(framed: AFrameLZ.encode(framed: image)), image)
+    }
+
     func testCSVParsingMatchesRealFirmwareFormat() throws {
         // Real firmware ends data lines with a trailing comma (capture
         // 20260701-212833); spec's TXT example shows interior empties.

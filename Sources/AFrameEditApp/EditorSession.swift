@@ -12,6 +12,8 @@ final class EditorSession {
         case toneLoaded(ToneSelect, num: Int, tone: ToneData)
         case saved(ToneSelect, num: Int)
         case meters(peak: PeakLevels, pressure: PressureLevels)
+        case projectSaved(name: String, url: URL)
+        case projectLoaded(name: String, backup: URL?)
         case status(String)
         case error(String)
     }
@@ -61,10 +63,7 @@ final class EditorSession {
                 self.client = client
                 self.isConnected = true
                 self.emit(.connected(firmware: firmware, group: info))
-                self.emit(.names(.instrument, try client.getProjectToneNameList(.instrument)))
-                self.emit(.names(.effect, try client.getProjectToneNameList(.effect)))
-                try self.loadTone(.instrument, num: info.instNum)
-                try self.loadTone(.effect, num: info.effectNum)
+                try self.loadNamesAndCurrentTones(info)
             } catch {
                 transport.close()
                 self.emit(.error("Connection failed: \(error.localizedDescription)"))
@@ -175,12 +174,84 @@ final class EditorSession {
         }
     }
 
+    // MARK: Project load / save
+
+    /// Pulls the whole project from the device and writes it to `url` as the
+    /// decoded 0x7F00 image (the same `.prj` format legacy aFrameEdit uses).
+    func saveProject(to url: URL) {
+        queue.async {
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame before saving a project"))
+                return
+            }
+            do {
+                self.flushNow()
+                let image = try AFrameLZ.decode(framed: try client.extGetProjectRaw())
+                let name = (try? DSPProject.decode(image, verifyChecksum: false))?.name ?? ""
+                try image.write(to: url)
+                self.emit(.projectSaved(name: name, url: url))
+            } catch {
+                self.emit(.error("Project save failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    /// Reads a `.prj` image file, validates it, backs up the device's current
+    /// project, then uploads the file — replacing the entire device project.
+    /// Refuses (without touching the device) if the file is malformed or the
+    /// safety backup can't be written.
+    func loadProject(from url: URL) {
+        queue.async {
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame before loading a project"))
+                return
+            }
+            do {
+                let image = try Data(contentsOf: url)
+                let project = try DSPProject.decode(image)  // validates size + checksum
+                let backup = try self.writeAutoBackup(client: client)
+                try client.extSetProjectRaw(AFrameLZ.encode(framed: image))
+                self.emit(.projectLoaded(name: project.name, backup: backup))
+                let info = try client.getCurrentGroupToneNum()
+                try self.loadNamesAndCurrentTones(info)
+            } catch {
+                self.emit(.error("Project load failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    /// Saves the device's current project into the app-support Backups folder,
+    /// returning the file URL. Throws if it can't be written (so a load that
+    /// promised a backup aborts before overwriting anything).
+    private func writeAutoBackup(client: AFrameClient) throws -> URL {
+        let image = try AFrameLZ.decode(framed: try client.extGetProjectRaw())
+        let dir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("aFrame Edit/Backups", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd-HHmmss"
+        let url = dir.appendingPathComponent("autobackup-\(fmt.string(from: Date())).prj")
+        try image.write(to: url)
+        return url
+    }
+
     // MARK: Internals (all on `queue`)
 
     private func loadTone(_ sel: ToneSelect, num: Int) throws {
         guard let client else { return }
         let (tone, _) = try client.extGetEditBuffText(sel)
         emit(.toneLoaded(sel, num: num, tone: tone))
+    }
+
+    /// Re-reads the project tone-name lists and the current inst/effect tones
+    /// (shared by connect and project-load).
+    private func loadNamesAndCurrentTones(_ info: GroupToneInfo) throws {
+        guard let client else { return }
+        emit(.names(.instrument, try client.getProjectToneNameList(.instrument)))
+        emit(.names(.effect, try client.getProjectToneNameList(.effect)))
+        try loadTone(.instrument, num: info.instNum)
+        try loadTone(.effect, num: info.effectNum)
     }
 
     private func scheduleFlush() {
