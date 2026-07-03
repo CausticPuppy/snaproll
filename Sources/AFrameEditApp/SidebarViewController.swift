@@ -64,8 +64,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     func setNames(_ list: [String], for sel: ToneSelect) {
         names[sel] = list
-        if sel == domain { tableView.reloadData() }
-        reselect()
+        if sel == domain {
+            reloadPreservingSelection()
+        } else {
+            reselect()
+        }
     }
 
     func setSelected(num: Int, for sel: ToneSelect) {
@@ -86,12 +89,22 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         suppressSelectionCallback = false
     }
 
+    /// Reloads the table for the current domain, then restores that domain's
+    /// stored selection. The reload itself is suppressed so its transient
+    /// selection change (row 0, since empty selection isn't allowed) doesn't
+    /// clobber the saved per-domain selection before it can be restored.
+    private func reloadPreservingSelection() {
+        suppressSelectionCallback = true
+        tableView.reloadData()
+        suppressSelectionCallback = false
+        reselect()
+    }
+
     // MARK: Actions
 
     @objc private func domainChanged() {
         domain = segmented.selectedSegment == 0 ? .instrument : .effect
-        tableView.reloadData()
-        reselect()
+        reloadPreservingSelection()
         onDomainChange?(domain)
     }
 
