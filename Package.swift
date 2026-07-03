@@ -19,7 +19,8 @@ let package = Package(
         .executableTarget(
             name: "AFrameEditApp",
             dependencies: ["AFrameKit"],
-            path: "Sources/AFrameEditApp"
+            path: "Sources/AFrameEditApp",
+            resources: [.process("Resources/AppIcon.png")]
         ),
         .testTarget(
             name: "AFrameKitTests",

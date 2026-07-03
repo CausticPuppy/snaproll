@@ -44,9 +44,20 @@ func buildMainMenu() -> NSMenu {
     return mainMenu
 }
 
+/// Sets the Dock/app icon from the bundled logo. The `.app` bundle also carries
+/// an `.icns` (for the Finder icon), but this makes the icon appear when the app
+/// is launched via `swift run`, which has no bundle icon.
+func applyAppIcon(to app: NSApplication) {
+    if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+       let icon = NSImage(contentsOf: url) {
+        app.applicationIconImage = icon
+    }
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
 app.mainMenu = buildMainMenu()
+applyAppIcon(to: app)
 app.setActivationPolicy(.regular)
 app.run()
