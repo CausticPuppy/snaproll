@@ -414,6 +414,29 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(reread.instPatch[0].name, "NewTone")
     }
 
+    func testGroupRecallStoreAndMax() throws {
+        try client.setExtMode(true)
+
+        // Recall loads the slot's inst+effect as the current selection.
+        let before = try client.getProjectGroupList(group: 1)
+        try client.extSelectGroup(group: 1, num: 2)
+        let info = try client.getCurrentGroupToneNum()
+        XCTAssertEqual(info.group, 1)
+        XCTAssertEqual(info.number, 2)
+        XCTAssertEqual(info.instNum, before.slots[2].inst)
+        XCTAssertEqual(info.effectNum, before.slots[2].effect)
+
+        // Select specific tones, then store into a slot while setting MAX.
+        try client.extChangeToneNum(.instrument, num: 7)
+        try client.extChangeToneNum(.effect, num: 9)
+        try client.extWriteGroup(group: 1, num: 3, max: 12)
+        let after = try client.getProjectGroupList(group: 1)
+        XCTAssertEqual(after.max, 12)
+        XCTAssertEqual(after.slots[3], GroupSlot(inst: 7, effect: 9))
+        // Storing one slot must not disturb its neighbors.
+        XCTAssertEqual(after.slots[2], before.slots[2])
+    }
+
     func testProjectFileFormatIsDecodedImage() throws {
         // The `.prj` file the load/save UI reads and writes is the decoded
         // 0x7F00 image (identical to legacy aFrameEdit's format). Verify our

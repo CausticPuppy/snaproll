@@ -8,6 +8,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private let editorVC = EditorViewController()
     private var sidebarSplitItem: NSSplitViewItem?
     private var monitorWC: MonitorWindowController?
+    private var groupEditorWC: GroupEditorWindowController?
+
+    // Latest project tone-name lists, relayed to the group editor to resolve
+    // slot patch numbers into names.
+    private var instNames: [String] = []
+    private var effectNames: [String] = []
 
     // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -132,12 +138,13 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
 
     private static let sidebarItemID = NSToolbarItem.Identifier("sidebarToggle")
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
+    private static let groupsItemID = NSToolbarItem.Identifier("groups")
     private static let monitorItemID = NSToolbarItem.Identifier("monitor")
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace,
-         Self.monitorItemID, Self.saveItemID]
+         Self.groupsItemID, Self.monitorItemID, Self.saveItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -172,6 +179,17 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             let item = NSToolbarItem(itemIdentifier: id)
             item.view = stack
             item.label = "Connection"
+            return item
+        case Self.groupsItemID:
+            let button = NSButton(
+                image: NSImage(systemSymbolName: "square.grid.3x3", accessibilityDescription: "Groups")!,
+                target: self, action: #selector(showGroupEditor))
+            button.bezelStyle = .texturedRounded
+            button.imagePosition = .imageOnly
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = button
+            item.label = "Groups"
+            item.toolTip = "Open the group map editor"
             return item
         case Self.monitorItemID:
             let button = NSButton(
@@ -252,6 +270,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 if self.monitorWC?.window?.isVisible == true {
                     self.session.startMonitoring()
                 }
+                if self.groupEditorWC?.window?.isVisible == true {
+                    self.session.loadGroups()
+                }
             case .disconnected:
                 self.statusDot.textColor = .systemRed
                 self.statusLabel.stringValue = "Not connected"
@@ -262,13 +283,18 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.sidebarVC.clear()
                 self.editorVC.clear()
                 self.monitorWC?.setIdle("Not connected")
+                self.groupEditorWC?.setIdle()
             case .names(let sel, let list):
                 self.sidebarVC.setNames(list, for: sel)
+                if sel == .instrument { self.instNames = list } else { self.effectNames = list }
+                self.groupEditorWC?.setNames(inst: self.instNames, effect: self.effectNames)
             case .toneLoaded(let sel, let num, let tone):
                 self.editorVC.showTone(tone, num: num, for: sel)
                 self.sidebarVC.setSelected(num: num, for: sel)
             case .meters(let peak, let pressure):
                 self.monitorWC?.update(peak: peak, pressure: pressure)
+            case .groups(let list, let current):
+                self.groupEditorWC?.update(lists: list, current: current)
             case .projectSaved(let name, let url):
                 let label = name.isEmpty ? url.lastPathComponent : "“\(name)” to \(url.lastPathComponent)"
                 self.statusLabel.stringValue = "Saved project \(label)"
@@ -329,6 +355,24 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             session.startMonitoring()
         } else {
             monitorWC?.setIdle("Waiting for connection…")
+        }
+    }
+
+    @objc private func showGroupEditor() {
+        if groupEditorWC == nil {
+            let wc = GroupEditorWindowController()
+            wc.onRecall = { [weak self] g, n in self?.session.recallGroupSlot(group: g, num: n) }
+            wc.onStore = { [weak self] g, n, m in self?.session.storeCurrentToGroup(group: g, num: n, max: m) }
+            wc.onSetMax = { [weak self] g, m in self?.session.setGroupMax(group: g, max: m) }
+            wc.onReload = { [weak self] in self?.session.loadGroups() }
+            groupEditorWC = wc
+        }
+        groupEditorWC?.setNames(inst: instNames, effect: effectNames)
+        groupEditorWC?.showWindow(nil)
+        if session.isConnected {
+            session.loadGroups()
+        } else {
+            groupEditorWC?.setIdle()
         }
     }
 

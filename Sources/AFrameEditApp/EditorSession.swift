@@ -14,6 +14,7 @@ final class EditorSession {
         case meters(peak: PeakLevels, pressure: PressureLevels)
         case projectSaved(name: String, url: URL)
         case projectLoaded(name: String, backup: URL?)
+        case groups(list: [GroupList], current: GroupToneInfo)
         case status(String)
         case error(String)
     }
@@ -234,6 +235,93 @@ final class EditorSession {
         let url = dir.appendingPathComponent("autobackup-\(fmt.string(from: Date())).prj")
         try image.write(to: url)
         return url
+    }
+
+    // MARK: Group map
+
+    /// Reads all 8 groups and the current position, emitting `.groups`.
+    func loadGroups() {
+        queue.async {
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame to edit groups"))
+                return
+            }
+            do { try self.emitGroups(client) }
+            catch { self.emit(.error("Group load failed: \(error.localizedDescription)")) }
+        }
+    }
+
+    /// Recalls a group slot on the device (loads its inst+effect), then refreshes
+    /// the editor to the newly-loaded tones.
+    func recallGroupSlot(group: Int, num: Int) {
+        queue.async {
+            guard let client = self.client else { return }
+            do {
+                self.flushNow()
+                try client.extSelectGroup(group: group, num: num)
+                try self.refreshCurrentTones(client)
+                try self.emitGroups(client)
+                self.emit(.status("Recalled \(Self.groupLabel(group))-\(String(format: "%02d", num + 1))"))
+            } catch {
+                self.emit(.error("Recall failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    /// Writes the current inst+effect selection into a group slot, preserving the
+    /// group's MAX.
+    func storeCurrentToGroup(group: Int, num: Int, max: Int) {
+        queue.async {
+            guard let client = self.client else { return }
+            do {
+                self.flushNow()
+                try client.extWriteGroup(group: group, num: num, max: max)
+                try self.emitGroups(client)
+                self.emit(.status("Stored current selection to \(Self.groupLabel(group))-\(String(format: "%02d", num + 1))"))
+            } catch {
+                self.emit(.error("Store failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    /// Sets a group's MAX. Since aFE1 is the only MAX setter and it also rewrites
+    /// a slot with the current selection, this recalls slot 0, stores it back
+    /// unchanged with the new MAX, then returns to the prior position.
+    func setGroupMax(group: Int, max: Int) {
+        queue.async {
+            guard let client = self.client else { return }
+            do {
+                self.flushNow()
+                let prior = try client.getCurrentGroupToneNum()
+                try client.extSelectGroup(group: group, num: 0)
+                try client.extWriteGroup(group: group, num: 0, max: max)
+                try client.extSelectGroup(group: prior.group, num: prior.number)
+                try self.refreshCurrentTones(client)
+                try self.emitGroups(client)
+                self.emit(.status("Set \(Self.groupLabel(group)) MAX to \(max)"))
+            } catch {
+                self.emit(.error("Set MAX failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    private func emitGroups(_ client: AFrameClient) throws {
+        let current = try client.getCurrentGroupToneNum()
+        var lists = [GroupList]()
+        for g in 0..<DSPProject.memoryGroups {
+            lists.append(try client.getProjectGroupList(group: g))
+        }
+        emit(.groups(list: lists, current: current))
+    }
+
+    private func refreshCurrentTones(_ client: AFrameClient) throws {
+        let info = try client.getCurrentGroupToneNum()
+        try loadTone(.instrument, num: info.instNum)
+        try loadTone(.effect, num: info.effectNum)
+    }
+
+    private static func groupLabel(_ g: Int) -> String {
+        ToneGroup(rawValue: g)?.description ?? "\(g)"
     }
 
     // MARK: Internals (all on `queue`)
