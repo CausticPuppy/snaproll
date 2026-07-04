@@ -150,8 +150,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace,
-         Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID, Self.saveItemID]
+        [Self.sidebarItemID, .flexibleSpace,
+         Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID,
+         .flexibleSpace, Self.connectionItemID, Self.saveItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {

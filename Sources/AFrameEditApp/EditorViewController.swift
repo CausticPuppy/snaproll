@@ -307,14 +307,15 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         title.font = .systemFont(ofSize: 11, weight: .semibold)
         title.textColor = .tertiaryLabelColor
 
-        // A subtle dice in each section header randomizes just that section.
-        let dice = NSButton(
-            image: NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize \(section)")!,
-            target: self, action: #selector(sectionDiceClicked(_:)))
+        // A dice in each section header randomizes just that section, sized to
+        // match the toolbar's Randomize dice.
+        let diceImage = NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize \(section)")!
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .regular))
+        let dice = NSButton(image: diceImage!, target: self, action: #selector(sectionDiceClicked(_:)))
         dice.isBordered = false
         dice.imagePosition = .imageOnly
         dice.identifier = NSUserInterfaceItemIdentifier(section)
-        dice.contentTintColor = .tertiaryLabelColor
+        dice.contentTintColor = .secondaryLabelColor
         dice.toolTip = "Randomize the \(section) section"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
