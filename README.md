@@ -2,7 +2,7 @@
 
 A native Swift/AppKit replacement for ATV's Intel-only aFrameEdit, built against
 the aFrame serial API (spec Ver 1.10, firmware 1.10+). See
-[GAP_ANALYSIS.md](GAP_ANALYSIS.md) for the API-vs-editor feature analysis that
+[Docs/GAP_ANALYSIS.md](Docs/GAP_ANALYSIS.md) for the API-vs-editor feature analysis that
 drives the plan.
 
 ## Layout
