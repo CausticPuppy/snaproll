@@ -102,6 +102,10 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             content.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             content.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             columnsStack.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
+            // Give the tone-name field the full content width; a leading-aligned
+            // editable field otherwise takes only its intrinsic width and clips
+            // the last glyph on long names.
+            nameField.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
         ])
 
         view = scroll
