@@ -414,6 +414,23 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(reread.instPatch[0].name, "NewTone")
     }
 
+    func testRandomizerBlend() {
+        let range = 0...100
+        // Rate 0 leaves the value untouched; rate 1 jumps to the target.
+        XCTAssertEqual(Randomizer.blend(current: 40, randomTarget: 90, rate: 0, range: range), 40)
+        XCTAssertEqual(Randomizer.blend(current: 40, randomTarget: 90, rate: 1, range: range), 90)
+        // Partial rate interpolates and rounds.
+        XCTAssertEqual(Randomizer.blend(current: 40, randomTarget: 80, rate: 0.5, range: range), 60)
+        // Result is always clamped to the range, and rate is clamped to 0...1.
+        XCTAssertEqual(Randomizer.blend(current: 10, randomTarget: 999, rate: 1, range: range), 100)
+        XCTAssertEqual(Randomizer.blend(current: 50, randomTarget: 0, rate: 2, range: 20...80), 20)
+        // A fully random draw within range stays in range across many samples.
+        for _ in 0..<200 {
+            let v = Randomizer.blend(current: 5, randomTarget: Int.random(in: range), rate: 1, range: range)
+            XCTAssertTrue(range.contains(v))
+        }
+    }
+
     func testGroupRecallStoreAndMax() throws {
         try client.setExtMode(true)
 

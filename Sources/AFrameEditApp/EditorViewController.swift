@@ -131,9 +131,115 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     var currentSlot: Int? { nums[domain] }
     var currentToneName: String? { tones[domain]?.name }
 
+    // MARK: Randomize
+
+    /// A scope for randomization: a display label plus the sections it covers
+    /// (nil = every section).
+    struct RandomizeTarget {
+        let label: String
+        let sections: Set<String>?
+    }
+
+    private var randomizeUndo: [Int: Int] = [:]
+    private var lastRandomizeScope: String?
+
+    /// Any randomize is undoable (used by the toolbar popover).
+    var hasRandomizeUndo: Bool { !randomizeUndo.isEmpty }
+    /// Only true when the last randomize was this section, so a section's Undo
+    /// never claims to undo an unrelated randomize.
+    func canUndoRandomize(section: String) -> Bool {
+        lastRandomizeScope == section && !randomizeUndo.isEmpty
+    }
+
+    private var activeRandomizeScope: String?
+    private lazy var sectionRandomizeVC: RandomizePopoverViewController = {
+        let vc = RandomizePopoverViewController()
+        vc.onRandomize = { [weak self] _, rate in
+            guard let self, let scope = self.activeRandomizeScope else { return }
+            self.randomize(target: RandomizeTarget(label: scope, sections: [scope]), rate: rate)
+            self.sectionRandomizeVC.setUndoEnabled(self.canUndoRandomize(section: scope))
+        }
+        vc.onUndo = { [weak self] in
+            self?.undoRandomize()
+            self?.sectionRandomizeVC.setUndoEnabled(false)
+        }
+        return vc
+    }()
+    private lazy var sectionRandomizePopover: NSPopover = {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = sectionRandomizeVC
+        return popover
+    }()
+
+    @objc private func sectionDiceClicked(_ sender: NSButton) {
+        guard let section = sender.identifier?.rawValue else { return }
+        activeRandomizeScope = section
+        sectionRandomizeVC.configureFixed(title: "Randomize \(section)",
+                                          canUndo: canUndoRandomize(section: section))
+        sectionRandomizePopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+    }
+
+    /// The targets available for the current tone: each section, plus MSX
+    /// (Main+Sub+Xtra) for instruments, plus All.
+    func randomizeTargets() -> [RandomizeTarget] {
+        guard let tone = tones[domain],
+              let descriptors = ParameterMap.parameters(for: domain, algoNum: tone.algoNum) else { return [] }
+        var order = [String]()
+        for d in descriptors where d.index < tone.values.count {
+            if !order.contains(d.section) { order.append(d.section) }
+        }
+        var targets = order.map { RandomizeTarget(label: $0, sections: [$0]) }
+        if domain == .instrument, ["Main", "Sub", "Xtra"].allSatisfy(order.contains) {
+            targets.append(RandomizeTarget(label: "MSX (Main+Sub+Xtra)", sections: ["Main", "Sub", "Xtra"]))
+        }
+        targets.append(RandomizeTarget(label: "All", sections: nil))
+        return targets
+    }
+
+    /// Randomizes the target's parameters by `rate` (0…100), excluding on/off
+    /// switches, keeping every value inside its hardware range, and streaming
+    /// each change like a normal edit. Records a one-level undo snapshot.
+    func randomize(target: RandomizeTarget, rate: Double) {
+        guard let tone = tones[domain],
+              let descriptors = ParameterMap.parameters(for: domain, algoNum: tone.algoNum) else { return }
+        var snapshot = [Int: Int]()
+        for d in descriptors where d.index < tone.values.count {
+            if case .onOff = d.display { continue }
+            if let sections = target.sections, !sections.contains(d.section) { continue }
+            guard let range = ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
+                  range.lowerBound < range.upperBound else { continue }
+            let current = tone.values[d.index]
+            let value = Randomizer.blend(current: current, randomTarget: Int.random(in: range),
+                                         rate: rate / 100, range: range)
+            guard value != current else { continue }
+            snapshot[d.index] = current
+            applyRandomized(index: d.index, value: value)
+        }
+        if !snapshot.isEmpty {
+            randomizeUndo = snapshot
+            lastRandomizeScope = target.label
+        }
+    }
+
+    /// Restores the values captured before the last randomize.
+    func undoRandomize() {
+        for (index, value) in randomizeUndo { applyRandomized(index: index, value: value) }
+        randomizeUndo = [:]
+        lastRandomizeScope = nil
+    }
+
+    private func applyRandomized(index: Int, value: Int) {
+        tones[domain]?.values[index] = value
+        rowViews[index]?.apply(value: value)
+        onParamChange?(domain, index, value)
+    }
+
     // MARK: Building
 
     private func rebuild() {
+        randomizeUndo = [:]
+        lastRandomizeScope = nil
         rowViews = [:]
         columnsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
@@ -201,7 +307,22 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         title.font = .systemFont(ofSize: 11, weight: .semibold)
         title.textColor = .tertiaryLabelColor
 
-        var views: [NSView] = [title]
+        // A subtle dice in each section header randomizes just that section.
+        let dice = NSButton(
+            image: NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize \(section)")!,
+            target: self, action: #selector(sectionDiceClicked(_:)))
+        dice.isBordered = false
+        dice.imagePosition = .imageOnly
+        dice.identifier = NSUserInterfaceItemIdentifier(section)
+        dice.contentTintColor = .tertiaryLabelColor
+        dice.toolTip = "Randomize the \(section) section"
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let header = NSStackView(views: [title, spacer, dice])
+        header.orientation = .horizontal
+        header.alignment = .centerY
+
+        var views: [NSView] = [header]
         for d in params {
             let row = ParameterRowView(
                 descriptor: d,
@@ -220,7 +341,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         inner.orientation = .vertical
         inner.alignment = .leading
         inner.spacing = 2
-        inner.setCustomSpacing(8, after: title)
+        inner.setCustomSpacing(8, after: header)
         inner.translatesAutoresizingMaskIntoConstraints = false
 
         let card = CardView()
@@ -232,7 +353,9 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             inner.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
             inner.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
         ])
-        for v in views.dropFirst() {
+        // Pin every row and the header to the card width so the header's dice
+        // sits flush right and the parameter rows fill the card.
+        for v in views {
             v.widthAnchor.constraint(equalTo: inner.widthAnchor).isActive = true
         }
         return card

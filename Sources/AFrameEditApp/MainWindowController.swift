@@ -19,6 +19,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let connectButton = NSButton(title: "Connect", target: nil, action: nil)
     private let saveButton = NSButton(title: "Save", target: nil, action: nil)
+    private let randomizeButton = NSButton(
+        image: NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize")!,
+        target: nil, action: nil)
+
+    private let randomizePopover = NSPopover()
+    private let randomizeVC = RandomizePopoverViewController()
 
     // Status bar
     private let statusLabel = NSTextField(labelWithString: "Not connected")
@@ -140,11 +146,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
     private static let groupsItemID = NSToolbarItem.Identifier("groups")
     private static let monitorItemID = NSToolbarItem.Identifier("monitor")
+    private static let randomizeItemID = NSToolbarItem.Identifier("randomize")
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.sidebarItemID, .space, Self.connectionItemID, .flexibleSpace,
-         Self.groupsItemID, Self.monitorItemID, Self.saveItemID]
+         Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID, Self.saveItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -202,6 +209,17 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             item.label = "Monitor"
             item.toolTip = "Open the real-time pressure / level monitor"
             return item
+        case Self.randomizeItemID:
+            randomizeButton.target = self
+            randomizeButton.action = #selector(showRandomize)
+            randomizeButton.bezelStyle = .texturedRounded
+            randomizeButton.imagePosition = .imageOnly
+            randomizeButton.isEnabled = false
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = randomizeButton
+            item.label = "Randomize"
+            item.toolTip = "Randomize parameters of the current tone"
+            return item
         case Self.saveItemID:
             saveButton.target = self
             saveButton.action = #selector(saveCurrentTone)
@@ -241,6 +259,20 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // MARK: Session wiring
 
     private func wireSession() {
+        randomizePopover.contentViewController = randomizeVC
+        randomizePopover.behavior = .transient
+        randomizeVC.onRandomize = { [weak self] idx, rate in
+            guard let self, let idx else { return }
+            let targets = self.editorVC.randomizeTargets()
+            guard targets.indices.contains(idx) else { return }
+            self.editorVC.randomize(target: targets[idx], rate: rate)
+            self.randomizeVC.setUndoEnabled(self.editorVC.hasRandomizeUndo)
+        }
+        randomizeVC.onUndo = { [weak self] in
+            self?.editorVC.undoRandomize()
+            self?.randomizeVC.setUndoEnabled(false)
+        }
+
         sidebarVC.onDomainChange = { [weak self] sel in
             self?.editorVC.setDomain(sel)
         }
@@ -265,6 +297,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.connectButton.title = "Disconnect"
                 self.connectButton.isEnabled = true
                 self.saveButton.isEnabled = true
+                self.randomizeButton.isEnabled = true
                 self.sidebarVC.setSelected(num: group.instNum, for: .instrument)
                 self.sidebarVC.setSelected(num: group.effectNum, for: .effect)
                 if self.monitorWC?.window?.isVisible == true {
@@ -280,6 +313,8 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.connectButton.title = "Connect"
                 self.connectButton.isEnabled = true
                 self.saveButton.isEnabled = false
+                self.randomizeButton.isEnabled = false
+                self.randomizePopover.close()
                 self.sidebarVC.clear()
                 self.editorVC.clear()
                 self.monitorWC?.setIdle("Not connected")
@@ -356,6 +391,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         } else {
             monitorWC?.setIdle("Waiting for connection…")
         }
+    }
+
+    @objc private func showRandomize() {
+        randomizeVC.configurePicker(targets: editorVC.randomizeTargets().map(\.label),
+                                    canUndo: editorVC.hasRandomizeUndo)
+        randomizePopover.show(relativeTo: randomizeButton.bounds, of: randomizeButton, preferredEdge: .maxY)
     }
 
     @objc private func showGroupEditor() {
