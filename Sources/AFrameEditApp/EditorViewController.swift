@@ -184,15 +184,15 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         sectionRandomizePopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
-    /// The targets available for the current tone: each section, plus MSX
+    /// The targets available for the current tone: only sections that actually
+    /// contain randomizable parameters (per the reference manual), plus MSX
     /// (Main+Sub+Xtra) for instruments, plus All.
     func randomizeTargets() -> [RandomizeTarget] {
         guard let tone = tones[domain],
               let descriptors = ParameterMap.parameters(for: domain, algoNum: tone.algoNum) else { return [] }
-        var order = [String]()
-        for d in descriptors where d.index < tone.values.count {
-            if !order.contains(d.section) { order.append(d.section) }
-        }
+        let inRange = descriptors.filter { $0.index < tone.values.count }
+        let order = RandomizationRules.randomizableSections(in: inRange, domain: domain)
+        guard !order.isEmpty else { return [] }
         var targets = order.map { RandomizeTarget(label: $0, sections: [$0]) }
         if domain == .instrument, ["Main", "Sub", "Xtra"].allSatisfy(order.contains) {
             targets.append(RandomizeTarget(label: "MSX (Main+Sub+Xtra)", sections: ["Main", "Sub", "Xtra"]))
@@ -201,19 +201,20 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         return targets
     }
 
-    /// Randomizes the target's parameters by `rate` (0…100), excluding on/off
-    /// switches, keeping every value inside its hardware range, and streaming
-    /// each change like a normal edit. Records a one-level undo snapshot.
+    /// Randomizes the target's parameters by `rate` (0…100), excluding the
+    /// parameters the reference manual fixes or excludes ("(Fix)" / "---"),
+    /// keeping every value inside its hardware range, and streaming each change
+    /// like a normal edit. Records a one-level undo snapshot.
     func randomize(target: RandomizeTarget, rate: Double) {
         guard let tone = tones[domain],
               let descriptors = ParameterMap.parameters(for: domain, algoNum: tone.algoNum) else { return }
         var snapshot = [Int: Int]()
         for d in descriptors where d.index < tone.values.count {
-            if case .onOff = d.display { continue }
             if let sections = target.sections, !sections.contains(d.section) { continue }
+            let current = tone.values[d.index]
+            guard RandomizationRules.shouldRandomize(d, currentValue: current, domain: domain) else { continue }
             guard let range = ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
                   range.lowerBound < range.upperBound else { continue }
-            let current = tone.values[d.index]
             let value = Randomizer.blend(current: current, randomTarget: Int.random(in: range),
                                          rate: rate / 100, range: range)
             guard value != current else { continue }
@@ -312,18 +313,24 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         title.textColor = .tertiaryLabelColor
 
         // A dice in each section header randomizes just that section, sized to
-        // match the toolbar's Randomize dice.
-        let diceImage = NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize \(section)")!
-            .withSymbolConfiguration(.init(pointSize: 15, weight: .regular))
-        let dice = NSButton(image: diceImage!, target: self, action: #selector(sectionDiceClicked(_:)))
-        dice.isBordered = false
-        dice.imagePosition = .imageOnly
-        dice.identifier = NSUserInterfaceItemIdentifier(section)
-        dice.contentTintColor = .secondaryLabelColor
-        dice.toolTip = "Randomize the \(section) section"
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let header = NSStackView(views: [title, spacer, dice])
+        // match the toolbar's Randomize dice. Only shown for sections that
+        // actually have randomizable parameters (per the reference manual);
+        // fixed/excluded sections like Mixer, Pressure, Ambience get no dice.
+        var headerViews: [NSView] = [title]
+        if params.contains(where: { RandomizationRules.isRandomizable($0, domain: domain) }) {
+            let diceImage = NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize \(section)")!
+                .withSymbolConfiguration(.init(pointSize: 15, weight: .regular))
+            let dice = NSButton(image: diceImage!, target: self, action: #selector(sectionDiceClicked(_:)))
+            dice.isBordered = false
+            dice.imagePosition = .imageOnly
+            dice.identifier = NSUserInterfaceItemIdentifier(section)
+            dice.contentTintColor = .secondaryLabelColor
+            dice.toolTip = "Randomize the \(section) section"
+            let spacer = NSView()
+            spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+            headerViews += [spacer, dice]
+        }
+        let header = NSStackView(views: headerViews)
         header.orientation = .horizontal
         header.alignment = .centerY
 

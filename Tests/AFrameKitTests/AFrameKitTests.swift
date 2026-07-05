@@ -489,3 +489,71 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(tones.map(\.name), names)
     }
 }
+
+final class RandomizationRulesTests: XCTestCase {
+    private func inst(_ name: String) -> ParameterDescriptor {
+        ParameterMap.instrument.first { $0.name == name }!
+    }
+    private func fx(_ algo: Int, _ name: String) -> ParameterDescriptor {
+        ParameterMap.effects[algo]!.first { $0.name == name }!
+    }
+
+    func testInstrumentTimbreLayersRandomizeExceptFixedParams() {
+        // '***' timbre params change.
+        for name in ["MainOvt", "MainHrmNo.", "MainTune", "MainDcay", "MainSC",
+                     "Sub Delay", "XtraType", "XtraJxModLev"] {
+            XCTAssertTrue(RandomizationRules.isRandomizable(inst(name), domain: .instrument),
+                          "\(name) should randomize")
+        }
+        // '(Fix)' timbre params do not.
+        for name in ["Main In", "Sub In", "Xtra In", "MainMute", "Sub Mute",
+                     "XtraMute", "Main OD", "Sub OD", "XtraJxCarLev"] {
+            XCTAssertFalse(RandomizationRules.isRandomizable(inst(name), domain: .instrument),
+                           "\(name) is fixed and must not randomize")
+        }
+    }
+
+    func testInstrumentNonTimbreSectionsAreExcluded() {
+        // Dry / Pressure / Mixer / Master are never randomized.
+        for name in ["DryC.EqF", "Edge HPF", "Mute Sens", "Bend Curve",
+                     "MixMainLev", "MixMainPan", "MixMasterLev", "MixMasterBal"] {
+            XCTAssertFalse(RandomizationRules.isRandomizable(inst(name), domain: .instrument),
+                           "\(name) is outside the timbre layers and must not randomize")
+        }
+        XCTAssertEqual(RandomizationRules.randomizableSections(in: ParameterMap.instrument,
+                                                               domain: .instrument),
+                       ["Main", "Sub", "Xtra"])
+    }
+
+    func testEffectFixedAndExcludedParams() {
+        // Reverb: '***' change, '(Fix)'/'---' do not.
+        for name in ["Time", "Pre Delay", "ER Dens", "HF Damp", "ER Level", "Rev Level"] {
+            XCTAssertTrue(RandomizationRules.isRandomizable(fx(1, name), domain: .effect), name)
+        }
+        for name in ["Pan Spread", "Wet Level", "Dry Level", "Reverb Sw", "FxMtrx",
+                     "PressMode", "PressSens", "PressAtck", "PressRele"] {
+            XCTAssertFalse(RandomizationRules.isRandomizable(fx(1, name), domain: .effect), name)
+        }
+        // SpaceR headphone monitor + fixed delay levels are excluded.
+        XCTAssertFalse(RandomizationRules.isRandomizable(fx(8, "Phones"), domain: .effect))
+        XCTAssertFalse(RandomizationRules.isRandomizable(fx(8, "DlyWetLev"), domain: .effect))
+        XCTAssertTrue(RandomizationRules.isRandomizable(fx(8, "Azimuth"), domain: .effect))
+    }
+
+    func testAmbienceAndCompressionSectionsExcluded() {
+        for name in ["AmbienceType", "Ambience Lev", "Comp Sw", "CompThrs",
+                     "CompRatio", "CompGain"] {
+            XCTAssertFalse(RandomizationRules.isRandomizable(fx(2, name), domain: .effect),
+                           "\(name) (ambience/comp) must not randomize")
+        }
+    }
+
+    func testBpmSyncedDelayTimesDoNotChange() {
+        let timeL = fx(2, "Time L")  // .bpmSyncTime
+        // Positive value = a real time in ms: randomizes.
+        XCTAssertTrue(RandomizationRules.shouldRandomize(timeL, currentValue: 250, domain: .effect))
+        // Non-positive = tempo-synced ("BPM") display: stays put.
+        XCTAssertFalse(RandomizationRules.shouldRandomize(timeL, currentValue: -300, domain: .effect))
+        XCTAssertFalse(RandomizationRules.shouldRandomize(timeL, currentValue: 0, domain: .effect))
+    }
+}
