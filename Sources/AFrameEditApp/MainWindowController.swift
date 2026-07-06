@@ -4,9 +4,7 @@ import UniformTypeIdentifiers
 
 final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuItemValidation {
     private let session = EditorSession()
-    private let sidebarVC = SidebarViewController()
     private let editorVC = EditorViewController()
-    private var sidebarSplitItem: NSSplitViewItem?
     private var monitorWC: MonitorWindowController?
     private var groupEditorWC: GroupEditorWindowController?
 
@@ -40,7 +38,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         window.title = "aFrame Edit"
-        window.minSize = NSSize(width: 960, height: 600)
+        window.minSize = NSSize(width: 720, height: 600)
         window.center()
         self.init(window: window)
         buildContent()
@@ -52,20 +50,8 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // MARK: Layout
 
     private func buildContent() {
-        let split = NSSplitViewController()
-        // A plain item (not `sidebarWithViewController:`) so the pane never
-        // auto-collapses when the window is narrowed; it's toggled only by the
-        // toolbar button. High holding priority keeps its width fixed while the
-        // detail pane absorbs window resizing.
-        let sidebarItem = NSSplitViewItem(viewController: sidebarVC)
-        sidebarItem.canCollapse = true
-        sidebarItem.minimumThickness = 200
-        sidebarItem.maximumThickness = 300
-        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(260)
-        sidebarSplitItem = sidebarItem
-        split.addSplitViewItem(sidebarItem)
-
-        // Detail area: editor + status bar
+        // Detail area: nav bar + editor + status bar. Tone browsing lives in the
+        // editor header's popup, so there's no sidebar pane.
         let detailVC = NSViewController()
         let container = NSView()
         detailVC.view = container
@@ -151,11 +137,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             statusStack.bottomAnchor.constraint(equalTo: statusBackground.bottomAnchor),
         ])
 
-        let detailItem = NSSplitViewItem(viewController: detailVC)
-        detailItem.minimumThickness = 640
-        split.addSplitViewItem(detailItem)
-
-        window?.contentViewController = split
+        window?.contentViewController = detailVC
     }
 
     private func addChildIfNeeded(_ child: NSViewController, to parent: NSViewController) {
@@ -173,7 +155,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
 
     // MARK: Toolbar delegate
 
-    private static let sidebarItemID = NSToolbarItem.Identifier("sidebarToggle")
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
     private static let groupsItemID = NSToolbarItem.Identifier("groups")
     private static let monitorItemID = NSToolbarItem.Identifier("monitor")
@@ -181,8 +162,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemID, .flexibleSpace,
-         Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID,
+        [Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID,
          .flexibleSpace, Self.connectionItemID, Self.saveItemID]
     }
 
@@ -193,19 +173,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         switch id {
-        case Self.sidebarItemID:
-            let button = NSButton(
-                image: NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "Toggle Sidebar")!,
-                target: self, action: #selector(toggleSidebar))
-            button.bezelStyle = .texturedRounded
-            button.imagePosition = .imageOnly
-            button.keyEquivalent = "s"
-            button.keyEquivalentModifierMask = [.control, .command]
-            let item = NSToolbarItem(itemIdentifier: id)
-            item.view = button
-            item.label = "Sidebar"
-            item.toolTip = "Show or hide the tone browser (⌃⌘S)"
-            return item
         case Self.connectionItemID:
             portPopup.controlSize = .regular
             portPopup.widthAnchor.constraint(equalToConstant: 210).isActive = true
@@ -309,13 +276,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             self?.session.recallGroupSlot(group: group, num: number)
         }
 
-        sidebarVC.onDomainChange = { [weak self] sel in
-            self?.changeDomain(sel)
-        }
         groupNav.onDomainChange = { [weak self] sel in
             self?.changeDomain(sel)
         }
-        sidebarVC.onSelectTone = { [weak self] sel, num in
+        editorVC.onSelectTone = { [weak self] sel, num in
             self?.session.selectTone(sel, num: num)
         }
         editorVC.onParamChange = { [weak self] sel, index, value in
@@ -337,8 +301,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.connectButton.isEnabled = true
                 self.saveButton.isEnabled = true
                 self.randomizeButton.isEnabled = true
-                self.sidebarVC.setSelected(num: group.instNum, for: .instrument)
-                self.sidebarVC.setSelected(num: group.effectNum, for: .effect)
                 self.groupNav.update(from: group)
                 if self.monitorWC?.window?.isVisible == true {
                     self.session.startMonitoring()
@@ -355,18 +317,16 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.saveButton.isEnabled = false
                 self.randomizeButton.isEnabled = false
                 self.randomizePopover.close()
-                self.sidebarVC.clear()
                 self.editorVC.clear()
                 self.monitorWC?.setIdle("Not connected")
                 self.groupEditorWC?.setIdle()
                 self.groupNav.setIdle()
             case .names(let sel, let list):
-                self.sidebarVC.setNames(list, for: sel)
+                self.editorVC.setToneNames(list, for: sel)
                 if sel == .instrument { self.instNames = list } else { self.effectNames = list }
                 self.groupEditorWC?.setNames(inst: self.instNames, effect: self.effectNames)
             case .toneLoaded(let sel, let num, let tone):
                 self.editorVC.showTone(tone, num: num, for: sel)
-                self.sidebarVC.setSelected(num: num, for: sel)
             case .meters(let peak, let pressure):
                 self.monitorWC?.update(peak: peak, pressure: pressure)
             case .groups(let list, let current):
@@ -397,11 +357,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // MARK: Actions
 
     /// Single point of truth for the instrument/effect view switch: updates the
-    /// editor and keeps the sidebar and nav-bar switchers in sync. Both setters
-    /// are callback-free, so this can't loop.
+    /// editor and keeps the nav-bar switcher in sync. `setDomain` is
+    /// callback-free, so this can't loop.
     private func changeDomain(_ sel: ToneSelect) {
         editorVC.setDomain(sel)
-        sidebarVC.setDomain(sel)
         groupNav.setDomain(sel)
     }
 
@@ -431,11 +390,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         connectButton.isEnabled = false
         statusLabel.stringValue = "Connecting…"
         session.connect(transport: transport)
-    }
-
-    @objc private func toggleSidebar() {
-        guard let item = sidebarSplitItem else { return }
-        item.animator().isCollapsed.toggle()
     }
 
     @objc private func showMonitor() {

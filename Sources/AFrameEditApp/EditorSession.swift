@@ -160,7 +160,7 @@ final class EditorSession {
     }
 
     /// Writes the edit buffer to the given project slot, then refreshes the
-    /// name list so the sidebar reflects the save.
+    /// name list so the tone browser reflects the save.
     func saveToProject(_ sel: ToneSelect, num: Int) {
         queue.async {
             guard let client = self.client else { return }

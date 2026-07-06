@@ -7,14 +7,19 @@ import AFrameKit
 final class EditorViewController: NSViewController, NSTextFieldDelegate {
     var onParamChange: ((ToneSelect, _ index: Int, _ value: Int) -> Void)?
     var onRename: ((ToneSelect, String) -> Void)?
+    /// Requests loading a different slot in the current domain (from the
+    /// header's tone browser popover).
+    var onSelectTone: ((ToneSelect, Int) -> Void)?
 
     private(set) var domain: ToneSelect = .instrument
     private var tones: [ToneSelect: ToneData] = [:]
     private var nums: [ToneSelect: Int] = [:]
     private var rowViews: [Int: ParameterRowView] = [:]
+    private var toneNames: [ToneSelect: [String]] = [.instrument: [], .effect: []]
 
     private let nameField = NSTextField(string: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
+    private let browseButton = NSButton()
     private let columnsStack = NSStackView()
     private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame (or the mock device) to start editing")
 
@@ -58,11 +63,31 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         nameField.delegate = self
         nameField.target = self
         nameField.action = #selector(nameEdited)
+        // Let the name field absorb the row width so long names don't clip; the
+        // browse chevron keeps its intrinsic size at the trailing edge.
+        nameField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        browseButton.title = "Browse"
+        browseButton.image = NSImage(systemSymbolName: "chevron.down",
+                                     accessibilityDescription: "Browse tones")
+        browseButton.imagePosition = .imageTrailing
+        browseButton.bezelStyle = .rounded
+        browseButton.font = .systemFont(ofSize: 12)
+        browseButton.target = self
+        browseButton.action = #selector(browseClicked)
+        browseButton.setContentHuggingPriority(.required, for: .horizontal)
+        browseButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        // Tone name + a disclosure chevron that opens the tone browser popover.
+        let nameRow = NSStackView(views: [nameField, browseButton])
+        nameRow.orientation = .horizontal
+        nameRow.alignment = .centerY
+        nameRow.spacing = 6
 
         subtitleLabel.font = .systemFont(ofSize: 12)
         subtitleLabel.textColor = .secondaryLabelColor
 
-        let header = NSStackView(views: [nameField, subtitleLabel])
+        let header = NSStackView(views: [nameRow, subtitleLabel])
         header.orientation = .vertical
         header.alignment = .leading
         header.spacing = 2
@@ -102,10 +127,10 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             content.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             content.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             columnsStack.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
-            // Give the tone-name field the full content width; a leading-aligned
-            // editable field otherwise takes only its intrinsic width and clips
-            // the last glyph on long names.
-            nameField.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
+            // Give the name row the full content width; the name field expands
+            // within it (a leading-aligned editable field otherwise takes only
+            // its intrinsic width and clips the last glyph on long names).
+            nameRow.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
         ])
 
         view = scroll
@@ -126,10 +151,44 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         rebuild()
     }
 
+    /// Supplies the browsable slot names for a domain (used by the header's
+    /// tone browser popover).
+    func setToneNames(_ list: [String], for sel: ToneSelect) {
+        toneNames[sel] = list
+    }
+
     func clear() {
         tones = [:]
         nums = [:]
+        toneNames = [.instrument: [], .effect: []]
+        tonePopover.performClose(nil)
         rebuild()
+    }
+
+    // MARK: Tone browser
+
+    private lazy var tonePickerVC: TonePickerViewController = {
+        let vc = TonePickerViewController()
+        vc.onSelect = { [weak self] slot in
+            guard let self else { return }
+            self.tonePopover.performClose(nil)
+            self.onSelectTone?(self.domain, slot)
+        }
+        return vc
+    }()
+
+    private lazy var tonePopover: NSPopover = {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = tonePickerVC
+        return popover
+    }()
+
+    @objc private func browseClicked() {
+        tonePickerVC.configure(names: toneNames[domain] ?? [],
+                               selected: nums[domain] ?? 0,
+                               noun: domain == .instrument ? "instruments" : "effects")
+        tonePopover.show(relativeTo: browseButton.bounds, of: browseButton, preferredEdge: .maxY)
     }
 
     var currentSlot: Int? { nums[domain] }
@@ -252,10 +311,13 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             nameField.stringValue = ""
             subtitleLabel.stringValue = ""
             nameField.isHidden = true
+            browseButton.isHidden = true
             emptyLabel.isHidden = false
             return
         }
         nameField.isHidden = false
+        browseButton.isHidden = false
+        browseButton.toolTip = domain == .instrument ? "Browse instruments" : "Browse effects"
         emptyLabel.isHidden = true
         nameField.stringValue = tone.name
 

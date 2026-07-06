@@ -117,7 +117,7 @@ final class GroupNavView: NSView {
         refresh()
     }
 
-    /// Reflects a domain change made elsewhere (sidebar, menu) without
+    /// Reflects a domain change made elsewhere (the View menu) without
     /// re-firing `onDomainChange`.
     func setDomain(_ sel: ToneSelect) {
         domainSegmented.selectedSegment = sel.rawValue
