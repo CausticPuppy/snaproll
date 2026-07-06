@@ -26,6 +26,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private let randomizePopover = NSPopover()
     private let randomizeVC = RandomizePopoverViewController()
 
+    // Group/tone navigation bar (top of the detail pane)
+    private let groupNav = GroupNavView()
+
     // Status bar
     private let statusLabel = NSTextField(labelWithString: "Not connected")
     private let firmwareLabel = NSTextField(labelWithString: "")
@@ -70,6 +73,21 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         addChildIfNeeded(editorVC, to: detailVC)
         let editorView = editorVC.view
         editorView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Navigation bar across the top of the detail pane, above the editor.
+        let navBackground = NSVisualEffectView()
+        navBackground.material = .headerView
+        navBackground.blendingMode = .withinWindow
+        navBackground.translatesAutoresizingMaskIntoConstraints = false
+        groupNav.translatesAutoresizingMaskIntoConstraints = false
+        navBackground.addSubview(groupNav)
+
+        let navDivider = NSBox()
+        navDivider.boxType = .separator
+        navDivider.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(navBackground)
+        container.addSubview(navDivider)
         container.addSubview(editorView)
 
         statusDot.font = .systemFont(ofSize: 9)
@@ -100,7 +118,20 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         container.addSubview(divider)
 
         NSLayoutConstraint.activate([
-            editorView.topAnchor.constraint(equalTo: container.topAnchor),
+            navBackground.topAnchor.constraint(equalTo: container.topAnchor),
+            navBackground.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            navBackground.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            navBackground.heightAnchor.constraint(equalToConstant: 40),
+            groupNav.leadingAnchor.constraint(equalTo: navBackground.leadingAnchor),
+            groupNav.trailingAnchor.constraint(equalTo: navBackground.trailingAnchor),
+            groupNav.topAnchor.constraint(equalTo: navBackground.topAnchor),
+            groupNav.bottomAnchor.constraint(equalTo: navBackground.bottomAnchor),
+
+            navDivider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            navDivider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            navDivider.topAnchor.constraint(equalTo: navBackground.bottomAnchor),
+
+            editorView.topAnchor.constraint(equalTo: navDivider.bottomAnchor),
             editorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             editorView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             editorView.bottomAnchor.constraint(equalTo: statusBackground.topAnchor),
@@ -274,6 +305,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             self?.randomizeVC.setUndoEnabled(false)
         }
 
+        groupNav.onNavigate = { [weak self] group, number in
+            self?.session.recallGroupSlot(group: group, num: number)
+        }
+
         sidebarVC.onDomainChange = { [weak self] sel in
             self?.editorVC.setDomain(sel)
         }
@@ -301,6 +336,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.randomizeButton.isEnabled = true
                 self.sidebarVC.setSelected(num: group.instNum, for: .instrument)
                 self.sidebarVC.setSelected(num: group.effectNum, for: .effect)
+                self.groupNav.update(from: group)
                 if self.monitorWC?.window?.isVisible == true {
                     self.session.startMonitoring()
                 }
@@ -320,6 +356,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.editorVC.clear()
                 self.monitorWC?.setIdle("Not connected")
                 self.groupEditorWC?.setIdle()
+                self.groupNav.setIdle()
             case .names(let sel, let list):
                 self.sidebarVC.setNames(list, for: sel)
                 if sel == .instrument { self.instNames = list } else { self.effectNames = list }
@@ -331,6 +368,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.monitorWC?.update(peak: peak, pressure: pressure)
             case .groups(let list, let current):
                 self.groupEditorWC?.update(lists: list, current: current)
+                self.groupNav.update(from: current)
             case .projectSaved(let name, let url):
                 let label = name.isEmpty ? url.lastPathComponent : "“\(name)” to \(url.lastPathComponent)"
                 self.statusLabel.stringValue = "Saved project \(label)"
