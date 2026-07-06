@@ -3,17 +3,23 @@ import AFrameKit
 
 /// A compact bar for navigating tones within a performance group: a group
 /// picker (A…D'), an editable slot number flanked by prev/next arrows, and a
-/// read-only "/ MAX" count. It holds no device state beyond what the last
-/// `update(from:)` set, and reports navigation requests via `onNavigate`.
+/// read-only "/ MAX" count, plus a trailing Instrument/Effect view switcher.
+/// It holds no device state beyond what the last `update(from:)` set, and
+/// reports navigation requests via `onNavigate`.
 final class GroupNavView: NSView {
     /// Requests a recall of the given group and zero-based slot number.
     var onNavigate: ((_ group: Int, _ number: Int) -> Void)?
+    /// Requests switching the editor between the instrument and effect views.
+    var onDomainChange: ((ToneSelect) -> Void)?
 
     private let groupPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let prevButton = GroupNavView.arrowButton("chevron.left", "Previous tone")
     private let numberField = NSTextField(string: "")
     private let maxLabel = NSTextField(labelWithString: "/ –")
     private let nextButton = GroupNavView.arrowButton("chevron.right", "Next tone")
+    private let domainSegmented = NSSegmentedControl(
+        labels: ["Instrument", "Effect"], trackingMode: .selectOne,
+        target: nil, action: nil)
 
     private var group = 0
     private var number = 0
@@ -49,6 +55,11 @@ final class GroupNavView: NSView {
         maxLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         maxLabel.textColor = .secondaryLabelColor
 
+        domainSegmented.selectedSegment = 0
+        domainSegmented.target = self
+        domainSegmented.action = #selector(domainChanged)
+        domainSegmented.toolTip = "Switch between the instrument and effect views (⌘1 / ⌘2)"
+
         let stack = NSStackView(views: [
             GroupNavView.caption("Group"), groupPopup,
             GroupNavView.caption("Tone"), prevButton, numberField, maxLabel, nextButton,
@@ -60,11 +71,15 @@ final class GroupNavView: NSView {
         stack.setCustomSpacing(2, after: prevButton)
         stack.setCustomSpacing(2, after: numberField)
         stack.translatesAutoresizingMaskIntoConstraints = false
+        domainSegmented.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+        addSubview(domainSegmented)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            domainSegmented.leadingAnchor.constraint(greaterThanOrEqualTo: stack.trailingAnchor, constant: 12),
+            domainSegmented.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            domainSegmented.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
@@ -102,6 +117,12 @@ final class GroupNavView: NSView {
         refresh()
     }
 
+    /// Reflects a domain change made elsewhere (sidebar, menu) without
+    /// re-firing `onDomainChange`.
+    func setDomain(_ sel: ToneSelect) {
+        domainSegmented.selectedSegment = sel.rawValue
+    }
+
     private func refresh() {
         groupPopup.isEnabled = connected
         numberField.isEnabled = connected
@@ -119,6 +140,10 @@ final class GroupNavView: NSView {
     }
 
     // MARK: Actions
+
+    @objc private func domainChanged() {
+        onDomainChange?(ToneSelect(rawValue: domainSegmented.selectedSegment) ?? .instrument)
+    }
 
     @objc private func groupChanged() {
         guard connected else { return }

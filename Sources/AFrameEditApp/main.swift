@@ -6,9 +6,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let controller = MainWindowController()
         mainWindowController = controller
-        // Build the menu now that the controller exists, so File-menu items can
-        // target it directly (project load/save live on the window controller).
-        NSApp.mainMenu = buildMainMenu(fileMenuTarget: controller)
+        // Build the menu now that the controller exists, so File/View menu items
+        // can target it directly (project load/save and the instrument/effect
+        // view switch live on the window controller).
+        NSApp.mainMenu = buildMainMenu(menuTarget: controller)
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -24,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // Minimal main menu so ⌘Q works when launched via `swift run`.
-func buildMainMenu(fileMenuTarget: AnyObject? = nil) -> NSMenu {
+func buildMainMenu(menuTarget: AnyObject? = nil) -> NSMenu {
     let mainMenu = NSMenu()
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
@@ -45,7 +46,7 @@ func buildMainMenu(fileMenuTarget: AnyObject? = nil) -> NSMenu {
                                 action: #selector(MainWindowController.openProject(_:)), keyEquivalent: "o")
     let saveAs = fileMenu.addItem(withTitle: "Save Project As…",
                                   action: #selector(MainWindowController.saveProjectAs(_:)), keyEquivalent: "S")
-    for item in [open, saveAs] { item.target = fileMenuTarget }
+    for item in [open, saveAs] { item.target = menuTarget }
     fileMenuItem.submenu = fileMenu
 
     let editMenuItem = NSMenuItem()
@@ -54,6 +55,18 @@ func buildMainMenu(fileMenuTarget: AnyObject? = nil) -> NSMenu {
     editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
     editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
     editMenuItem.submenu = editMenu
+
+    let viewMenuItem = NSMenuItem()
+    mainMenu.addItem(viewMenuItem)
+    let viewMenu = NSMenu(title: "View")
+    let instrument = viewMenu.addItem(withTitle: "Instrument",
+                                      action: #selector(MainWindowController.showInstrumentView(_:)),
+                                      keyEquivalent: "1")
+    let effect = viewMenu.addItem(withTitle: "Effect",
+                                  action: #selector(MainWindowController.showEffectView(_:)),
+                                  keyEquivalent: "2")
+    for item in [instrument, effect] { item.target = menuTarget }
+    viewMenuItem.submenu = viewMenu
     return mainMenu
 }
 

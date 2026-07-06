@@ -81,6 +81,15 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.reloadData()
     }
 
+    /// Reflects a domain change made elsewhere (nav bar, menu) without
+    /// re-firing `onDomainChange`.
+    func setDomain(_ sel: ToneSelect) {
+        guard sel != domain else { return }
+        domain = sel
+        segmented.selectedSegment = sel.rawValue
+        reloadPreservingSelection()
+    }
+
     private func reselect() {
         guard let num = selected[domain], num < tableView.numberOfRows else { return }
         suppressSelectionCallback = true

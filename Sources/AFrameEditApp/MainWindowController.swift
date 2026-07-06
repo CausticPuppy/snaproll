@@ -310,7 +310,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
 
         sidebarVC.onDomainChange = { [weak self] sel in
-            self?.editorVC.setDomain(sel)
+            self?.changeDomain(sel)
+        }
+        groupNav.onDomainChange = { [weak self] sel in
+            self?.changeDomain(sel)
         }
         sidebarVC.onSelectTone = { [weak self] sel, num in
             self?.session.selectTone(sel, num: num)
@@ -392,6 +395,23 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     }
 
     // MARK: Actions
+
+    /// Single point of truth for the instrument/effect view switch: updates the
+    /// editor and keeps the sidebar and nav-bar switchers in sync. Both setters
+    /// are callback-free, so this can't loop.
+    private func changeDomain(_ sel: ToneSelect) {
+        editorVC.setDomain(sel)
+        sidebarVC.setDomain(sel)
+        groupNav.setDomain(sel)
+    }
+
+    @objc func showInstrumentView(_ sender: Any?) {
+        changeDomain(.instrument)
+    }
+
+    @objc func showEffectView(_ sender: Any?) {
+        changeDomain(.effect)
+    }
 
     @objc private func toggleConnection() {
         if session.isConnected {
@@ -507,6 +527,12 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         switch menuItem.action {
         case #selector(openProject(_:)), #selector(saveProjectAs(_:)):
             return session.isConnected
+        case #selector(showInstrumentView(_:)):
+            menuItem.state = editorVC.domain == .instrument ? .on : .off
+            return true
+        case #selector(showEffectView(_:)):
+            menuItem.state = editorVC.domain == .effect ? .on : .off
+            return true
         default:
             return true
         }
