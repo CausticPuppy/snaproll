@@ -106,6 +106,14 @@ public enum ParameterMap {
         16: "8:1", 17: "9:1", 18: "10:1", 19: "20:1", 20: "INF:1",
     ]
 
+    /// Numeric compression ratios for the `compRatioNames` codes (the ":1"
+    /// denominator dropped; INF:1 → `.infinity`). Used to plot the comp curve.
+    public static let compRatioValues: [Int: Double] = [
+        1: 1.1, 2: 1.2, 3: 1.3, 4: 1.4, 5: 1.5, 6: 1.6, 7: 1.7, 8: 1.8, 9: 1.9,
+        10: 2, 11: 3, 12: 4, 13: 5, 14: 6, 15: 7, 16: 8, 17: 9, 18: 10, 19: 20,
+        20: .infinity,
+    ]
+
     // MARK: Shared display shorthands
 
     private static let dB10 = ParameterDisplay.scaled(divisor: 10, unit: "dB", signed: true)

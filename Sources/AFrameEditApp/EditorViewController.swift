@@ -17,6 +17,11 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private var rowViews: [Int: ParameterRowView] = [:]
     private var toneNames: [ToneSelect: [String]] = [.instrument: [], .effect: []]
 
+    // The effect compressor curve, present only while an effect's Comp card is
+    // built; `compIndices` maps its parameter names to their tone-value indices.
+    private var compCurveView: CompressorCurveView?
+    private var compIndices: [String: Int] = [:]
+
     private let nameField = NSTextField(string: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let browseButton = NSButton()
@@ -299,12 +304,32 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         onParamChange?(domain, index, value)
     }
 
+    /// Recomputes the compressor curve from the effect tone's current comp
+    /// values. No-op unless an effect Comp card (and thus the plot) is built.
+    private func updateCompCurve() {
+        guard let curve = compCurveView, let tone = tones[.effect] else { return }
+        func value(_ name: String) -> Int? {
+            guard let index = compIndices[name], index < tone.values.count else { return nil }
+            return tone.values[index]
+        }
+        let ratioCode = value("CompRatio") ?? 10
+        let kneeCode = value("CompKnee") ?? 0
+        curve.update(
+            thresholdDb: Double(value("CompThrs") ?? 0) / 10,
+            ratio: ParameterMap.compRatioValues[ratioCode] ?? 1,
+            kneeWidthDb: kneeCode == 2 ? 12 : (kneeCode == 1 ? 6 : 0),
+            makeupGainDb: Double(value("CompGain") ?? 0) / 10,
+            isOn: (value("Comp Sw") ?? 0) != 0)
+    }
+
     // MARK: Building
 
     private func rebuild() {
         randomizeUndo = [:]
         lastRandomizeScope = nil
         rowViews = [:]
+        compCurveView = nil
+        compIndices = [:]
         columnsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         guard let tone = tones[domain] else {
@@ -367,6 +392,8 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             }
             columnsStack.addArrangedSubview(stack)
         }
+
+        updateCompCurve()
     }
 
     private func makeCard(section: String, params: [ParameterDescriptor], tone: ToneData) -> NSView {
@@ -397,6 +424,19 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         header.alignment = .centerY
 
         var views: [NSView] = [header]
+
+        // Effects carry a compressor block; show the live transfer-curve monitor
+        // atop its card, mirroring the original aFrameEdit "Comp Curve".
+        if domain == .effect, section == "Comp" {
+            compIndices = Dictionary(params.map { ($0.name, $0.index) }, uniquingKeysWith: { a, _ in a })
+            let curve = CompressorCurveView()
+            curve.translatesAutoresizingMaskIntoConstraints = false
+            curve.heightAnchor.constraint(equalToConstant: 180).isActive = true
+            curve.toolTip = "Compressor input → output curve"
+            compCurveView = curve
+            views.append(curve)
+        }
+
         for d in params {
             let row = ParameterRowView(
                 descriptor: d,
@@ -406,6 +446,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
                 guard let self else { return }
                 self.tones[self.domain]?.values[d.index] = value
                 self.onParamChange?(self.domain, d.index, value)
+                if d.section == "Comp" { self.updateCompCurve() }
             }
             rowViews[d.index] = row
             views.append(row)
