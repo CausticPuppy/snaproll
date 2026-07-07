@@ -30,11 +30,11 @@ func buildMainMenu(menuTarget: AnyObject? = nil) -> NSMenu {
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
     let appMenu = NSMenu()
-    appMenu.addItem(withTitle: "About aFrame Edit",
+    appMenu.addItem(withTitle: "About Snaproll",
                     action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                     keyEquivalent: "")
     appMenu.addItem(.separator())
-    appMenu.addItem(withTitle: "Quit aFrame Edit",
+    appMenu.addItem(withTitle: "Quit Snaproll",
                     action: #selector(NSApplication.terminate(_:)),
                     keyEquivalent: "q")
     appMenuItem.submenu = appMenu

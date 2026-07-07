@@ -1,7 +1,8 @@
-# aFrame Edit (Apple Silicon)
+# Snaproll (Apple Silicon)
 
-A native Swift/AppKit replacement for ATV's Intel-only aFrameEdit, built against
-the aFrame serial API (spec Ver 1.10, firmware 1.10+). See
+Snaproll — an editor for the ATV aFrame. A native Swift/AppKit replacement for
+ATV's Intel-only aFrameEdit, built against the aFrame serial API (spec Ver 1.10,
+firmware 1.10+). See
 [Docs/GAP_ANALYSIS.md](Docs/GAP_ANALYSIS.md) for the API-vs-editor feature analysis that
 drives the plan.
 
@@ -15,7 +16,7 @@ drives the plan.
   run with the instrument connected; collects everything needed to close the
   spec's documentation gaps (parameter dictionary, LZSS variant, checksums,
   TXT-mode value).
-- `Sources/AFrameEditApp` — the AppKit editor: sidebar tone browser
+- `Sources/SnaprollApp` — the AppKit editor: sidebar tone browser
   (instrument/effect tabs, 80-slot lists) + a sectioned, multi-column
   parameter editor driven by `ParameterMap`. Controls are chosen per display
   type (sliders with real ranges, enum popups, on/off switches), values are
@@ -31,7 +32,7 @@ swift build
 swift test
 
 # Run the app (enable "Mock device" to try it without hardware):
-swift run AFrameEdit
+swift run Snaproll
 
 # With the aFrame connected via USB:
 swift run aframe-capture              # lists candidate serial ports

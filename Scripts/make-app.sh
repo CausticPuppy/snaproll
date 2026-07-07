@@ -1,20 +1,20 @@
 #!/bin/sh
-# Wraps the SwiftPM-built binary in a minimal .app bundle at .build/aFrame Edit.app
+# Wraps the SwiftPM-built binary in a minimal .app bundle at .build/Snaproll.app
 set -e
 cd "$(dirname "$0")/.."
 swift build
-APP=".build/aFrame Edit.app"
+APP=".build/Snaproll.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/debug/AFrameEdit "$APP/Contents/MacOS/AFrameEdit"
+cp .build/debug/Snaproll "$APP/Contents/MacOS/Snaproll"
 
 # Bundle the SwiftPM resources (so Bundle.module resolves inside the .app too).
-if [ -d ".build/debug/AFrameEdit_AFrameEditApp.bundle" ]; then
-    cp -R ".build/debug/AFrameEdit_AFrameEditApp.bundle" "$APP/Contents/Resources/"
+if [ -d ".build/debug/Snaproll_SnaprollApp.bundle" ]; then
+    cp -R ".build/debug/Snaproll_SnaprollApp.bundle" "$APP/Contents/Resources/"
 fi
 
 # Build AppIcon.icns from the source logo for the Finder/Dock icon.
-ICON_SRC="Sources/AFrameEditApp/Resources/AppIcon.png"
+ICON_SRC="Sources/SnaprollApp/Resources/AppIcon.png"
 if [ -f "$ICON_SRC" ]; then
     ICONSET="$(mktemp -d)/AppIcon.iconset"
     mkdir -p "$ICONSET"
@@ -34,10 +34,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>com.jasonbruce.aframe-edit</string>
-    <key>CFBundleName</key><string>aFrame Edit</string>
-    <key>CFBundleDisplayName</key><string>aFrame Edit</string>
-    <key>CFBundleExecutable</key><string>AFrameEdit</string>
+    <key>CFBundleIdentifier</key><string>com.jasonbruce.snaproll</string>
+    <key>CFBundleName</key><string>Snaproll</string>
+    <key>CFBundleDisplayName</key><string>Snaproll</string>
+    <key>CFBundleExecutable</key><string>Snaproll</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>

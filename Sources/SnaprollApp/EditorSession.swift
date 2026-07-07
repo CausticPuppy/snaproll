@@ -228,7 +228,7 @@ final class EditorSession {
         let image = try AFrameLZ.decode(framed: try client.extGetProjectRaw())
         let dir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("aFrame Edit/Backups", isDirectory: true)
+            .appendingPathComponent("Snaproll/Backups", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd-HHmmss"

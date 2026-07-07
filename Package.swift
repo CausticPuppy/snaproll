@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "AFrameEdit",
+    name: "Snaproll",
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "AFrameKit", targets: ["AFrameKit"]),
         .executable(name: "aframe-capture", targets: ["AFrameCapture"]),
-        .executable(name: "AFrameEdit", targets: ["AFrameEditApp"]),
+        .executable(name: "Snaproll", targets: ["SnaprollApp"]),
     ],
     targets: [
         .target(name: "AFrameKit", path: "Sources/AFrameKit"),
@@ -17,9 +17,9 @@ let package = Package(
             path: "Sources/AFrameCapture"
         ),
         .executableTarget(
-            name: "AFrameEditApp",
+            name: "SnaprollApp",
             dependencies: ["AFrameKit"],
-            path: "Sources/AFrameEditApp",
+            path: "Sources/SnaprollApp",
             resources: [.process("Resources/AppIcon.png")]
         ),
         .testTarget(

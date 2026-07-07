@@ -37,7 +37,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        window.title = "aFrame Edit"
+        window.title = "Snaproll"
         window.minSize = NSSize(width: 720, height: 600)
         window.center()
         self.init(window: window)
@@ -468,7 +468,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         alert.informativeText = """
             Loading “\(url.lastPathComponent)” overwrites all 160 patches and the \
             group map on the connected aFrame. The current project is backed up \
-            first (to Application Support / aFrame Edit / Backups).
+            first (to Application Support / Snaproll / Backups).
             """
         alert.addButton(withTitle: "Replace")
         alert.addButton(withTitle: "Cancel")

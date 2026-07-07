@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ATV aFrame}",
+            "name": "Debug aframe-capture",
+            "target": "aframe-capture",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug aframe-capture"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ATV aFrame}",
+            "name": "Release aframe-capture",
+            "target": "aframe-capture",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release aframe-capture"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ATV aFrame}",
+            "name": "Debug Snaproll",
+            "target": "Snaproll",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Snaproll"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ATV aFrame}",
+            "name": "Release Snaproll",
+            "target": "Snaproll",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Snaproll"
+        }
+    ]
+}
