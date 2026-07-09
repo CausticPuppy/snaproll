@@ -51,7 +51,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
 
         private func applyColors() {
             effectiveAppearance.performAsCurrentDrawingAppearance {
-                layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+                layer?.backgroundColor = Palette.cardFill.cgColor
                 layer?.borderColor = Palette.cardBorder.cgColor
             }
         }

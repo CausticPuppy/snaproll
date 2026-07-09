@@ -38,4 +38,9 @@ enum Palette {
     /// Card border, more defined on white (previously `.separatorColor`).
     static let cardBorder = dynamic(light: NSColor(white: 0.75, alpha: 1),
                                     dark: .separatorColor)
+
+    /// Card fill. A warm off-white in light mode (vs. the plain white
+    /// `.controlBackgroundColor`); unchanged in dark mode.
+    static let cardFill = dynamic(light: NSColor(srgbRed: 0.89, green: 0.865, blue: 0.835, alpha: 1),
+                                  dark: .controlBackgroundColor)
 }
