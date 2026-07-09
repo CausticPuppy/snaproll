@@ -387,6 +387,11 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             stack.orientation = .vertical
             stack.alignment = .leading
             stack.spacing = 14
+            // Columns are top-aligned and differ in height. Without this, a
+            // short column stretches to match the tallest one and the slack is
+            // absorbed by an arbitrary card's header, which balloons and pushes
+            // that card's rows out of view.
+            stack.setHuggingPriority(.defaultHigh, for: .vertical)
             for card in column {
                 card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
             }
@@ -422,6 +427,9 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         let header = NSStackView(views: headerViews)
         header.orientation = .horizontal
         header.alignment = .centerY
+        // Keep the title row at its natural height rather than letting it soak
+        // up any vertical slack the card is given.
+        header.setHuggingPriority(.defaultHigh, for: .vertical)
 
         var views: [NSView] = [header]
 
