@@ -105,13 +105,13 @@ The value sweep (`--sweep` / `--sweep-quick`, captures 20260702-082318 and
   scale (scale 1–29, 0 = OFF; 13 scale-control modes); Mute = 0 OFF /
   1 ON(global) / offset-by-one ± sensitivity;
   Tune = positive Hz (16–12544) / negative note mode −(MIDI×100 + cents),
-  C0–G9 with ±50 cents; delay times: negative = BPM sync,
-  −(division_code×256 + fine).
+  C0–G9 with ±50 cents; Pan (Main/Sub/Xtra) = position×1 + mode×256
+  (position 1–127, 64 = C00; 12 pressure-pan modes; Dry pans position-only);
+  delay times: negative = BPM sync, −(division_code×256 + fine).
 - Tests enforce that every enumerated label table exactly covers its
   hardware-accepted range.
 
-Still open (cosmetic, sweep later if needed): auto-pan mode labels inside the
-mixer Pan composite (23 modes) and BPM division codes 3/5/6 labels.
+Still open (cosmetic, sweep later if needed): BPM division codes 3/5/6 labels.
 
 ## Disclaimer
 

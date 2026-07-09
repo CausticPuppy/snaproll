@@ -23,6 +23,7 @@ struct Options {
     var sweepQuick = false
     var tuneProbe = false
     var scProbe = false
+    var panProbe = false
 }
 
 func parseOptions() -> Options {
@@ -38,6 +39,7 @@ func parseOptions() -> Options {
         case "--sweep-quick": opts.sweepQuick = true
         case "--tune-probe": opts.tuneProbe = true
         case "--sc-probe": opts.scProbe = true
+        case "--pan-probe": opts.panProbe = true
         default:
             FileHandle.standardError.write(Data("Unknown option: \(arg)\n".utf8))
             exit(2)
@@ -414,7 +416,62 @@ func runSCProbe() throws {
     save("sc_probe.txt", report.joined(separator: "\n") + "\n")
 }
 
-if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe {
+// --- Pan position + pressure-pan-mode probe -----------------------------
+//
+// MixMainPan/MixSub Pan/MixXtraPan (idx 50/51/52) pack an L/R position and one
+// of 12 "pressure pan control" modes (manual p.22) shown as a 2-char code
+// (--/+R/-L/…). The value sweep only recorded the ranges ([1,2943] for the
+// instrument pans, [1,127] for MixDryCPan/MixDryEPan). The declared max
+// 2943 = 11*256 + 127 implies position 1..127 (64=C00) + mode*256, mode 0..11.
+// This confirms that alignment by sweeping the position axis (mode 0) and the
+// mode axis at C00 (position 64), stepping by 128 so off-grid (odd) steps show
+// whether the stride is 256. It also spot-checks a Dry pan (position only).
+// Edit-buffer only; originals restored.
+
+func runPanProbe() throws {
+    var report = [String]()
+    let positionAxis = [1, 32, 64, 96, 127]                 // L63 … C00 … R63
+    let center = 64
+    let modeSteps = Array(0...24).map { $0 * 128 }          // 256-aligned + odd
+
+    func probePan(_ sel: ToneSelect, idx: Int, tag: String, modes: Bool) throws {
+        let (tone, _) = try client.extGetEditBuffText(sel)
+        let orig = Int(tone.values[idx])
+        report.append("=== \(tag) idx \(idx) tone=\(tone.name) orig=\(orig)")
+        log("== probing \(tag) Pan (idx \(idx))")
+
+        func write(_ v: Int, _ note: String) throws {
+            do {
+                try client.extChangeEditBuffParam(sel, index: idx, value: v, lcd: true)
+            } catch AFrameError.commandRejected {
+                report.append(String(format: "%8d | (rejected) %@", v, note))
+                return
+            }
+            usleep(60_000)
+            let lcd = try client.getLCD(addr: 32, count: 24)
+            report.append(String(format: "%8d | %@", v, lcd))
+            log(String(format: "  %8d | %@", v, lcd))
+        }
+
+        report.append("-- position axis (mode 0)")
+        for p in positionAxis { try write(p, "pos=\(p)") }
+        if modes {
+            report.append("-- mode axis (position \(center) = C00)")
+            for off in modeSteps { try write(off + center, "off=\(off)") }
+        }
+        _ = try? client.extChangeEditBuffParam(sel, index: idx, value: orig, lcd: false)
+    }
+
+    let info = try client.getCurrentGroupToneNum()
+    step("Probe MixMainPan (idx 50)") { try probePan(.instrument, idx: 50, tag: "INST MixMainPan", modes: true) }
+    step("Spot-check MixDryCPan (idx 53)") { try probePan(.instrument, idx: 53, tag: "INST MixDryCPan", modes: false) }
+    step("Restore selections") {
+        try client.extSelectGroup(group: info.group, num: info.number, lcd: true)
+    }
+    save("pan_probe.txt", report.joined(separator: "\n") + "\n")
+}
+
+if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe || opts.panProbe {
     step("GetVersion") {
         log("  \(try client.getVersion())")
     }
@@ -429,6 +486,7 @@ if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe
         if opts.sweep || opts.sweepQuick { try runValueSweep() }
         if opts.tuneProbe { try runTuneProbe() }
         if opts.scProbe { try runSCProbe() }
+        if opts.panProbe { try runPanProbe() }
     } catch {
         log("PROBE FAILED: \(error.localizedDescription)")
         client.drain()

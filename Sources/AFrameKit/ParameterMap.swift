@@ -46,6 +46,12 @@ public enum ParameterDisplay: Equatable {
     /// 1...29 (0 = OFF) and mode 0...12. Hardware-confirmed:
     /// captures/20260708-210922/sc_probe.txt.
     case scaleControl
+    /// Instrument Main/Sub/Xtra mixer pan (`PanValue`). Packs an L/R position
+    /// and a pressure-pan mode as `mode × 256 + position`, position 1...127
+    /// (64 = C00) and mode 0...11 (12 modes). Hardware-confirmed:
+    /// captures/20260708-213318/pan_probe.txt. (The Dry pans carry no mode and
+    /// use plain `.pan`.)
+    case panWithMode
     /// Known formatting that is not yet fully modeled (documented in `note`).
     case custom(note: String)
 }
@@ -153,8 +159,7 @@ public enum ParameterMap {
     private static let bendCurve = ParameterDisplay.enumerated(
         [0: "A0", 1: "A1", 2: "A2", 3: "A3", 4: "A4", 5: "A5", 6: "A6", 7: "A7", 8: "A8"])
     private static let jxFilterType = ParameterDisplay.enumerated([0: "LPF", 1: "HPF", 2: "BPF"])
-    private static let mixPan = ParameterDisplay.custom(
-        note: "composite position(1–127, 64=C00) + 128 × auto-pan mode (0–22); mode labels not yet swept")
+    private static let mixPan = ParameterDisplay.panWithMode
 
     private static let pressModeStd = ParameterDisplay.enumerated(
         [0: "OFF", 1: "MUTE", 2: "LEVEL", 3: "SEND", 4: "SPREAD"])
@@ -256,8 +261,8 @@ public enum ParameterMap {
         .init(50, "MixMainPan", "Mixer", mixPan),
         .init(51, "MixSub Pan", "Mixer", mixPan),
         .init(52, "MixXtraPan", "Mixer", mixPan),
-        .init(53, "MixDryCPan", "Mixer", mixPan),
-        .init(54, "MixDryEPan", "Mixer", mixPan),
+        .init(53, "MixDryCPan", "Mixer", .pan),   // Dry pans are position-only
+        .init(54, "MixDryEPan", "Mixer", .pan),
         .init(55, "MixMainLev", "Mixer", .levelWithMode(modes: ["--", "P+", "P-"])),
         .init(56, "MixSub Lev", "Mixer", .levelWithMode(modes: ["--", "P+", "P-"])),
         .init(57, "MixXtraLev", "Mixer", .levelWithMode(modes: ["--", "P+", "P-"])),

@@ -253,6 +253,15 @@ final class ParameterFormatterTests: XCTestCase {
                        "MScale \u{00B7} Pressure \u{2193}")     // mode 1
         XCTAssertEqual(ParameterFormatter.string(for: 3101, display: .scaleControl),
                        "Chrmtic \u{00B7} Skip \u{21C5}")        // mode 12, scale 29
+        // Pan (inst idx 50/51/52): L/R position + one of 12 pressure-pan modes
+        // packed as mode×256 + position, matching
+        // captures/20260708-213318/pan_probe.txt.
+        XCTAssertEqual(ParameterFormatter.string(for: 64, display: .panWithMode), "C00")   // Off, center
+        XCTAssertEqual(ParameterFormatter.string(for: 1, display: .panWithMode), "L63")    // Off, hard left
+        XCTAssertEqual(ParameterFormatter.string(for: 320, display: .panWithMode),
+                       "C00 \u{00B7} Pressure +127")            // mode 1
+        XCTAssertEqual(ParameterFormatter.string(for: 2880, display: .panWithMode),
+                       "C00 \u{00B7} Pitch Hi\u{2192}L")        // mode 11
     }
 
     func testTuneValueEncodingAndConversion() {
@@ -345,6 +354,56 @@ final class ParameterFormatterTests: XCTestCase {
         XCTAssertGreaterThan(checked, 50, "expected MainSC and XtraSC scale sweeps")
     }
 
+    func testPanValueEncoding() {
+        XCTAssertEqual(PanValue(raw: 64), PanValue(position: 64, mode: 0))     // C00, Off
+        XCTAssertEqual(PanValue(raw: 320), PanValue(position: 64, mode: 1))    // +256
+        XCTAssertEqual(PanValue(raw: 2943), PanValue(position: 127, mode: 11)) // max
+        for raw in [1, 64, 127, 320, 1344, 1856, 2880, 2943] {
+            XCTAssertEqual(PanValue(raw: raw).raw, raw, "raw round trip \(raw)")
+        }
+        // The 12 modes decompose to 5 categories and recompose losslessly.
+        XCTAssertEqual(PanMap.categories.count, 5)
+        var seen = Set<Int>()
+        for mode in PanMap.modeRange {
+            let (ci, vi) = PanMap.decompose(mode: mode)
+            XCTAssertEqual(PanMap.compose(category: ci, variant: vi), mode, "mode \(mode)")
+            seen.insert(mode)
+        }
+        XCTAssertEqual(seen.count, 12)
+        // "Off" is category 0 with no variant; composing it ignores the variant.
+        XCTAssertEqual(PanMap.compose(category: 0, variant: 3), 0)
+    }
+
+    func testPanMatchesHardwareProbe() throws {
+        // Regression against the device's own LCD rendering. Some mode codes are
+        // arrow/± glyphs the LCD reader can't decode, so this asserts the
+        // position field (rendered identically to the LCD's L/C/R notation).
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260708-213318/pan_probe.txt")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("hardware pan probe capture not available")
+        }
+        var inPositionAxis = false
+        var checked = 0
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("-- position axis") { inPositionAxis = true; continue }
+            if line.hasPrefix("-- mode axis") { inPositionAxis = false; continue }
+            if line.hasPrefix("===") { inPositionAxis = false; continue }
+            guard inPositionAxis else { continue }
+            let cols = line.split(separator: "|")
+            guard cols.count == 2,
+                  let raw = Int(cols[0].trimmingCharacters(in: .whitespaces)) else { continue }
+            // The LCD packs a 3-char position field right after "Mix…Pan:".
+            let lcd = String(cols[1])
+            guard let colon = lcd.range(of: "Pan:") else { continue }
+            let field = String(lcd[colon.upperBound...].prefix(3))
+            XCTAssertEqual(field, PanMap.positionString(raw), "raw \(raw)")
+            checked += 1
+        }
+        XCTAssertGreaterThan(checked, 8, "expected MixMainPan and MixDryCPan position sweeps")
+    }
+
     func testParseInvertsFormatting() {
         // Round-trips: parsing the formatted string recovers the raw value.
         let cases: [(Int, ParameterDisplay)] = [
@@ -391,6 +450,7 @@ final class ParameterFormatterTests: XCTestCase {
         // Controls with their own value don't accept typed input.
         XCTAssertNil(ParameterFormatter.parse("On", display: .onOff))
         XCTAssertNil(ParameterFormatter.parse("MScale \u{00B7} Pressure \u{2191}", display: .scaleControl))
+        XCTAssertNil(ParameterFormatter.parse("C00 \u{00B7} Pressure +127", display: .panWithMode))
     }
 
     func testUnitSplitsFromValueText() {

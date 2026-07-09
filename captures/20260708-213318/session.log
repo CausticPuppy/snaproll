@@ -1,0 +1,47 @@
+aframe-capture session 20260708-213318
+target: /dev/cu.usbserial-0001
+output: /Users/jason/Documents/ATV aFrame/captures/20260708-213318
+
+== GetVersion
+  VER.2.00-BLD.001 2019/02/28 17:58:50
+== Enter external edit mode
+== Probe MixMainPan (idx 50)
+== probing INST MixMainPan Pan (idx 50)
+         1 | MixMainPan:L63--?       
+        32 | MixMainPan:L32--?       
+        64 | MixMainPan:C00--?       
+        96 | MixMainPan:R32--?       
+       127 | MixMainPan:R63--?       
+        64 | MixMainPan:C00--?       
+       192 | MixMainPan:C00--?       
+       320 | MixMainPan:C00+R?       
+       448 | MixMainPan:C00+R?       
+       576 | MixMainPan:C00+L?       
+       704 | MixMainPan:C00+L?       
+       832 | MixMainPan:C00+r?       
+       960 | MixMainPan:C00+r?       
+      1088 | MixMainPan:C00+l?       
+      1216 | MixMainPan:C00+l?       
+      1344 | MixMainPan:C00Lr?       
+      1472 | MixMainPan:C00Lr?       
+      1600 | MixMainPan:C00Rl?       
+      1728 | MixMainPan:C00Rl?       
+      1856 | MixMainPan:C00?r?       
+      1984 | MixMainPan:C00?r?       
+      2112 | MixMainPan:C00?l?       
+      2240 | MixMainPan:C00?l?       
+      2368 | MixMainPan:C00???       
+      2496 | MixMainPan:C00???       
+      2624 | MixMainPan:C00???       
+      2752 | MixMainPan:C00???       
+      2880 | MixMainPan:C00???       
+== Spot-check MixDryCPan (idx 53)
+== probing INST MixDryCPan Pan (idx 53)
+         1 | MixDryCPan:L63? ?       
+        32 | MixDryCPan:L32? ?       
+        64 | MixDryCPan:C00? ?       
+        96 | MixDryCPan:R32? ?       
+       127 | MixDryCPan:R63? ?       
+== Restore selections
+  saved pan_probe.txt (1439 bytes)
+== Leave external edit mode

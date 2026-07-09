@@ -25,7 +25,7 @@ final class ParameterRowView: NSView {
     /// ranges can be set precisely without fighting the slider's resolution.
     private var valueIsTypeable: Bool {
         switch descriptor.display {
-        case .onOff, .enumerated, .tune, .scaleControl: return false
+        case .onOff, .enumerated, .tune, .scaleControl, .panWithMode: return false
         default: return true
         }
     }
@@ -48,6 +48,11 @@ final class ParameterRowView: NSView {
     // popup (13 modes). The mode popup is disabled while the scale is OFF.
     private var scScalePopup: NSPopUpButton?
     private var scModePopup: NSPopUpButton?
+
+    // Pan control: an L/R position slider plus a pressure-pan category popup
+    // that drives a dependent variant popup (the 12 modes group as 5 categories).
+    private var panCategoryPopup: NSPopUpButton?
+    private var panVariantPopup: NSPopUpButton?
 
     static let rowHeight: CGFloat = 26
 
@@ -78,6 +83,8 @@ final class ParameterRowView: NSView {
             toolTip = "Tuning as absolute frequency (16–12544 Hz) or a note (C0–G9) plus cents (−50…+49)"
         } else if case .scaleControl = descriptor.display {
             toolTip = "Pressure scale: a musical scale plus one of 13 note-sequencing modes (arrows = up/down direction)"
+        } else if case .panWithMode = descriptor.display {
+            toolTip = "L/R pan position plus a pressure-pan mode (category + variant); Off = no pressure panning"
         }
 
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
@@ -189,6 +196,9 @@ final class ParameterRowView: NSView {
             valueStack?.isHidden = true  // both popups carry the readout
             return makeSCControl()
 
+        case .panWithMode:
+            return makePanControl()  // slider + popups; readout keeps the L/R text
+
         default:
             let bounds = range ?? -32768...32767
             return makeSlider(min: bounds.lowerBound, max: bounds.upperBound)
@@ -283,6 +293,56 @@ final class ParameterRowView: NSView {
         return stack
     }
 
+    private func makePanControl() -> NSView {
+        let s = makeSlider(min: PanMap.positionRange.lowerBound,
+                           max: PanMap.positionRange.upperBound)   // L/R position
+
+        let cat = NSPopUpButton(frame: .zero, pullsDown: false)
+        cat.controlSize = .small
+        cat.font = .systemFont(ofSize: 10)
+        for (i, c) in PanMap.categories.enumerated() {
+            cat.addItem(withTitle: c.name)
+            cat.lastItem?.tag = i
+        }
+        cat.target = self
+        cat.action = #selector(panCategoryChanged)
+        cat.widthAnchor.constraint(equalToConstant: 74).isActive = true
+        panCategoryPopup = cat
+
+        let variant = NSPopUpButton(frame: .zero, pullsDown: false)
+        variant.controlSize = .small
+        variant.font = .systemFont(ofSize: 10)
+        variant.target = self
+        variant.action = #selector(panVariantChanged)
+        variant.widthAnchor.constraint(equalToConstant: 58).isActive = true
+        panVariantPopup = variant
+
+        let stack = NSStackView(views: [s, cat, variant])
+        stack.orientation = .horizontal
+        stack.spacing = 4
+        return stack
+    }
+
+    /// Fills the variant popup for a category, selecting `select` (clamped).
+    /// "Off" has no variants, so the popup shows a disabled placeholder.
+    private func repopulatePanVariants(category: Int, select: Int) {
+        guard let variant = panVariantPopup else { return }
+        variant.removeAllItems()
+        let variants = PanMap.categories.indices.contains(category)
+            ? PanMap.categories[category].variants : []
+        if variants.isEmpty {
+            variant.addItem(withTitle: "\u{2014}")
+            variant.isEnabled = false
+        } else {
+            for (i, name) in variants.enumerated() {
+                variant.addItem(withTitle: name)
+                variant.lastItem?.tag = i
+            }
+            variant.selectItem(withTag: Swift.max(0, Swift.min(select, variants.count - 1)))
+            variant.isEnabled = true
+        }
+    }
+
     private func makeSlider(min: Int, max: Int) -> NSSlider {
         let s = NSSlider(value: 0, minValue: Double(min), maxValue: Double(max),
                          target: self, action: #selector(sliderChanged))
@@ -332,6 +392,12 @@ final class ParameterRowView: NSView {
                 scModePopup?.selectItem(withTag: mode)
                 scModePopup?.isEnabled = true
             }
+        case .panWithMode:
+            let v = PanValue(raw: newValue)
+            slider?.integerValue = v.position
+            let (ci, vi) = PanMap.decompose(mode: v.mode)
+            panCategoryPopup?.selectItem(withTag: ci)
+            repopulatePanVariants(category: ci, select: vi)
         default:
             slider?.integerValue = newValue
         }
@@ -345,14 +411,21 @@ final class ParameterRowView: NSView {
     }
 
     private func formattedValue(_ v: Int) -> String {
-        ParameterFormatter.valueText(for: v, display: descriptor.display,
-                                     context: contextProvider?() ?? .init())
+        // The pan readout stays short (just the L/R position); the mode lives in
+        // the popups rather than the composite label.
+        if case .panWithMode = descriptor.display {
+            return PanMap.positionString(PanValue(raw: v).position)
+        }
+        return ParameterFormatter.valueText(for: v, display: descriptor.display,
+                                            context: contextProvider?() ?? .init())
     }
 
     @objc private func sliderChanged() {
         guard let slider else { return }
         if case .levelWithMode = descriptor.display {
             compositeChanged()
+        } else if case .panWithMode = descriptor.display {
+            panEmit()
         } else {
             emit(slider.integerValue)
         }
@@ -449,5 +522,22 @@ final class ParameterRowView: NSView {
 
     @objc private func toggleChanged() {
         emit(toggle?.state == .on ? 1 : 0)
+    }
+
+    // MARK: Pan (position slider + category/variant popups)
+
+    @objc private func panCategoryChanged() {
+        // A new category repopulates the variant popup (selecting its first).
+        repopulatePanVariants(category: panCategoryPopup?.selectedTag() ?? 0, select: 0)
+        panEmit()
+    }
+
+    @objc private func panVariantChanged() { panEmit() }
+
+    private func panEmit() {
+        let pos = slider?.integerValue ?? 64
+        let mode = PanMap.compose(category: panCategoryPopup?.selectedTag() ?? 0,
+                                  variant: panVariantPopup?.selectedTag() ?? 0)
+        emit(PanValue(position: pos, mode: mode).raw)
     }
 }
