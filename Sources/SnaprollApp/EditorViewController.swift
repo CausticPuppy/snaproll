@@ -442,11 +442,28 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
                 descriptor: d,
                 range: ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
                 value: d.index < tone.values.count ? tone.values[d.index] : 0)
+            // Mute readouts fold in the tone's global Mute Sens for their
+            // "ON(n)" form; feed the live value in and render once with it.
+            if case .muteSensitivity = d.display {
+                row.contextProvider = { [weak self] in
+                    guard let self, let tone = self.tones[self.domain],
+                          tone.values.indices.contains(ParameterMap.muteSensIndex)
+                    else { return .init() }
+                    return .init(globalMuteSens: tone.values[ParameterMap.muteSensIndex])
+                }
+                row.apply(value: row.value)
+            }
             row.onChange = { [weak self] value in
                 guard let self else { return }
                 self.tones[self.domain]?.values[d.index] = value
                 self.onParamChange?(self.domain, d.index, value)
                 if d.section == "Comp" { self.updateCompCurve() }
+                // Editing Mute Sens changes every mute row's "ON(n)" readout.
+                if d.index == ParameterMap.muteSensIndex {
+                    for r in self.rowViews.values where r.descriptor.display == .muteSensitivity {
+                        r.apply(value: r.value)
+                    }
+                }
             }
             rowViews[d.index] = row
             views.append(row)

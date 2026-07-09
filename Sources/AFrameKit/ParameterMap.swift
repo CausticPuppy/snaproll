@@ -29,6 +29,18 @@ public enum ParameterDisplay: Equatable {
     /// encoded -(code × 256 + fine) where code renders a note division
     /// (observed 0="4", 1=".8", 2="8", 4="16", 7="T16") and fine is 0–255.
     case bpmSyncTime
+    /// Instrument Main/Sub/Xtra tuning (`TuneValue`). Positive raw = absolute
+    /// frequency in Hz (16...12544); negative raw = note mode, encoded
+    /// -(MIDI note × 100 + cents) with note 12 (C0) ... 127 (G9) and cents
+    /// -50...+49. The two bands are disjoint — raw 1...15 and -1...-1149 are
+    /// rejected. Hardware-confirmed: captures/20260708-204307/tune_probe.txt.
+    case tune
+    /// Instrument Main/Sub/Xtra mute sensitivity. The hardware renders `0` as
+    /// "OFF", `1` as "ON(n)" where n is the tone's global Mute Sens (idx 46,
+    /// supplied via the formatter `Context`), `v ≥ 2` as "+(v-1)", and `v < 0`
+    /// verbatim. Range -100...101. (LCD-confirmed: captures/20260702-082318,
+    /// idx 10/22/35.)
+    case muteSensitivity
     /// Known formatting that is not yet fully modeled (documented in `note`).
     case custom(note: String)
 }
@@ -129,8 +141,11 @@ public enum ParameterMap {
         Dictionary(uniqueKeysWithValues: xtraTypeNames.enumerated().map { ($0, $1) }))
     private static let scale = ParameterDisplay.custom(
         note: "composite root×128 ± scale code; see ParameterMap.scaleNames")
-    private static let muteMode = ParameterDisplay.custom(
-        note: "0=OFF, 1=ON(global Mute Sens), v≥2 renders +(v-1), v<0 renders v; range -100...101")
+    private static let muteMode = ParameterDisplay.muteSensitivity
+
+    /// Instrument parameter index of the global "Mute Sens" value that the
+    /// Main/Sub/Xtra mute readouts fold into their "ON(n)" rendering.
+    public static let muteSensIndex = 46
     private static let bendCurve = ParameterDisplay.enumerated(
         [0: "A0", 1: "A1", 2: "A2", 3: "A3", 4: "A4", 5: "A5", 6: "A6", 7: "A7", 8: "A8"])
     private static let jxFilterType = ParameterDisplay.enumerated([0: "LPF", 1: "HPF", 2: "BPF"])
@@ -182,7 +197,7 @@ public enum ParameterMap {
         .init(0, "Main In", "Main", .centerEdge),
         .init(1, "MainOvt", "Main", overtone),
         .init(2, "MainHrmNo.", "Main", plain),
-        .init(3, "MainTune", "Main", .custom(note: "positive = Hz; negative zone (to -12749) rendering not yet swept — editor shows note+cents mode")),
+        .init(3, "MainTune", "Main", .tune),
         .init(4, "MainDcay", "Main", .scaled(divisor: 10, unit: "sec", signed: false)),
         .init(5, "Main HFD", "Main", .scaled(divisor: 100, unit: nil, signed: true)),
         .init(6, "Main DQM", "Main", plain),
@@ -195,7 +210,7 @@ public enum ParameterMap {
         .init(12, "Sub In", "Sub", .centerEdge),
         .init(13, "Sub Ovt", "Sub", overtone),
         .init(14, "Sub HrmNo.", "Sub", plain),
-        .init(15, "Sub Tune", "Sub", .custom(note: "see MainTune")),
+        .init(15, "Sub Tune", "Sub", .tune),
         .init(16, "Sub Dcay", "Sub", ms),
         .init(17, "Sub HFD", "Sub", .scaled(divisor: 100, unit: nil, signed: true)),
         .init(18, "Sub DQM", "Sub", plain),
@@ -209,7 +224,7 @@ public enum ParameterMap {
         // Xtra timbre (core)
         .init(26, "Xtra In", "Xtra", .centerEdge),
         .init(27, "XtraType", "Xtra", xtraType),
-        .init(28, "XtraTune", "Xtra", .custom(note: "see MainTune")),
+        .init(28, "XtraTune", "Xtra", .tune),
         .init(29, "XtraDcay", "Xtra", ms),
         .init(30, "XtraHold", "Xtra", ms),
         .init(31, "XtraFltQ", "Xtra", .scaled(divisor: 10, unit: nil, signed: false)),

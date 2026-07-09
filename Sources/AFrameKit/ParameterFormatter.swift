@@ -3,7 +3,16 @@ import Foundation
 /// Renders raw parameter values the way the hardware LCD does (with minor
 /// cosmetic liberties like spacing), for display in the editor UI.
 public enum ParameterFormatter {
-    public static func string(for value: Int, display: ParameterDisplay) -> String {
+    /// Live sibling values that some display types fold into their rendering.
+    public struct Context: Equatable {
+        /// The tone's global "Mute Sens" (instrument idx 46), shown inside the
+        /// Main/Sub/Xtra "ON(n)" mute readout. Nil renders a bare "ON".
+        public var globalMuteSens: Int?
+        public init(globalMuteSens: Int? = nil) { self.globalMuteSens = globalMuteSens }
+    }
+
+    public static func string(for value: Int, display: ParameterDisplay,
+                              context: Context = Context()) -> String {
         switch display {
         case .raw(let unit):
             return withUnit("\(value)", unit)
@@ -37,6 +46,15 @@ public enum ParameterFormatter {
             let divisions = [0: "4", 1: ".8", 2: "8", 4: "16", 7: "T16"]
             let name = divisions[code] ?? "div\(code)"
             return fine == 0 ? "♩\(name)" : "♩\(name) +\(fine)"
+        case .tune:
+            return TuneMap.label(raw: value)
+        case .muteSensitivity:
+            switch value {
+            case 0: return "OFF"
+            case 1: return context.globalMuteSens.map { "ON(\($0))" } ?? "ON"
+            case let v where v >= 2: return "+\(v - 1)"
+            default: return "\(value)"
+            }
         case .custom:
             return "\(value)"
         }
@@ -62,8 +80,9 @@ public enum ParameterFormatter {
 
     /// The value portion for an editable field: `string(for:)` with the fixed
     /// unit stripped off (the UI renders that unit as a separate label).
-    public static func valueText(for value: Int, display: ParameterDisplay) -> String {
-        let full = string(for: value, display: display)
+    public static func valueText(for value: Int, display: ParameterDisplay,
+                                 context: Context = Context()) -> String {
+        let full = string(for: value, display: display, context: context)
         guard let unit = unit(for: display) else { return full }
         return stripUnit(full, unit)
     }
@@ -106,6 +125,14 @@ public enum ParameterFormatter {
         case .levelWithMode:
             let level = s.prefix { $0.isNumber || $0 == "-" }
             return Int(level)
+        case .tune:
+            return TuneMap.parse(s)
+        case .muteSensitivity:
+            let up = s.uppercased()
+            if up == "OFF" { return 0 }
+            if up.hasPrefix("ON") { return 1 }          // "ON" or "ON(n)"
+            if s.hasPrefix("+"), let n = Int(s.dropFirst()) { return n + 1 }
+            return Int(s)                                // negative or raw entry
         case .custom:
             return Int(s)
         case .onOff, .enumerated:

@@ -8,6 +8,11 @@ final class ParameterRowView: NSView {
     let range: ClosedRange<Int>?
     var onChange: ((Int) -> Void)?
 
+    /// Live sibling context for display types that fold in other parameter
+    /// values (e.g. the mute readout's "ON(n)" needs the tone's Mute Sens).
+    /// The editor sets this; the readout re-reads it on every render.
+    var contextProvider: (() -> ParameterFormatter.Context)?
+
     private(set) var value: Int
 
     private let nameLabel = NSTextField(labelWithString: "")
@@ -20,7 +25,7 @@ final class ParameterRowView: NSView {
     /// ranges can be set precisely without fighting the slider's resolution.
     private var valueIsTypeable: Bool {
         switch descriptor.display {
-        case .onOff, .enumerated: return false
+        case .onOff, .enumerated, .tune: return false
         default: return true
         }
     }
@@ -28,6 +33,16 @@ final class ParameterRowView: NSView {
     private var modePopup: NSPopUpButton?  // levelWithMode mode selector
     private var enumPopup: NSPopUpButton?
     private var toggle: NSSwitch?
+
+    // Tune control: Hz/Note mode toggle over a deck that swaps a Hz field for a
+    // note popup + cents field. Avoids the single-slider trap of Tune's gapped,
+    // two-band valid range by composing only valid values.
+    private var tuneMode: NSSegmentedControl?
+    private var tuneHzField: NSTextField?
+    private var tuneHzView: NSView?
+    private var tuneNotePopup: NSPopUpButton?
+    private var tuneCentsField: NSTextField?
+    private var tuneNoteView: NSView?
 
     static let rowHeight: CGFloat = 26
 
@@ -52,6 +67,10 @@ final class ParameterRowView: NSView {
         nameLabel.lineBreakMode = .byTruncatingTail
         if case .custom(let note) = descriptor.display {
             toolTip = note
+        } else if case .muteSensitivity = descriptor.display {
+            toolTip = "0 = OFF · 1 = ON (uses the tone's Mute Sens) · ±N = per-tone sensitivity offset"
+        } else if case .tune = descriptor.display {
+            toolTip = "Tuning as absolute frequency (16–12544 Hz) or a note (C0–G9) plus cents (−50…+49)"
         }
 
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
@@ -155,10 +174,70 @@ final class ParameterRowView: NSView {
             stack.spacing = 4
             return stack
 
+        case .tune:
+            valueStack?.isHidden = true  // controls carry the readout; reclaim the width
+            return makeTuneControl()
+
         default:
             let bounds = range ?? -32768...32767
             return makeSlider(min: bounds.lowerBound, max: bounds.upperBound)
         }
+    }
+
+    private func makeTuneControl() -> NSView {
+        let seg = NSSegmentedControl(labels: ["Hz", "Note"], trackingMode: .selectOne,
+                                     target: self, action: #selector(tuneModeChanged))
+        seg.controlSize = .small
+        seg.segmentDistribution = .fillEqually
+        seg.setContentHuggingPriority(.required, for: .horizontal)
+        tuneMode = seg
+
+        let hz = NSTextField(string: "")
+        hz.controlSize = .small
+        hz.alignment = .right
+        hz.bezelStyle = .roundedBezel
+        hz.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        hz.target = self
+        hz.action = #selector(tuneCommitted)
+        hz.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        tuneHzField = hz
+        let hzUnit = NSTextField(labelWithString: "Hz")
+        hzUnit.font = .systemFont(ofSize: 11)
+        hzUnit.textColor = .secondaryLabelColor
+        let hzView = NSStackView(views: [hz, hzUnit])
+        hzView.spacing = 3
+        tuneHzView = hzView
+
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.controlSize = .small
+        popup.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        for midi in TuneMap.midiRange {
+            popup.addItem(withTitle: TuneMap.noteName(midi: midi))
+            popup.lastItem?.tag = midi
+        }
+        popup.target = self
+        popup.action = #selector(tuneCommitted)
+        tuneNotePopup = popup
+        let cents = NSTextField(string: "")
+        cents.controlSize = .small
+        cents.alignment = .right
+        cents.bezelStyle = .roundedBezel
+        cents.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        cents.target = self
+        cents.action = #selector(tuneCommitted)
+        cents.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        tuneCentsField = cents
+        let noteView = NSStackView(views: [popup, cents])
+        noteView.spacing = 3
+        tuneNoteView = noteView
+
+        // Both editors live in one slot; only the active mode's is shown.
+        let deck = NSStackView(views: [hzView, noteView])
+        deck.spacing = 0
+        let stack = NSStackView(views: [seg, deck])
+        stack.orientation = .horizontal
+        stack.spacing = 6
+        return stack
     }
 
     private func makeSlider(min: Int, max: Int) -> NSSlider {
@@ -186,16 +265,35 @@ final class ParameterRowView: NSView {
             let mode = newValue >= 0 ? newValue / 256 : 0
             slider?.integerValue = newValue - mode * 256
             modePopup?.selectItem(withTag: mode)
+        case .tune:
+            switch TuneValue(raw: newValue) {
+            case .hz(let h):
+                tuneMode?.selectedSegment = 0
+                tuneHzView?.isHidden = false
+                tuneNoteView?.isHidden = true
+                tuneHzField?.stringValue = "\(h)"
+            case .note(let midi, let cents):
+                tuneMode?.selectedSegment = 1
+                tuneHzView?.isHidden = true
+                tuneNoteView?.isHidden = false
+                tuneNotePopup?.selectItem(withTag: midi)
+                tuneCentsField?.stringValue = TuneMap.centsString(cents)
+            }
         default:
             slider?.integerValue = newValue
         }
-        valueLabel.stringValue = ParameterFormatter.valueText(for: newValue, display: descriptor.display)
+        valueLabel.stringValue = formattedValue(newValue)
     }
 
     private func emit(_ newValue: Int) {
         value = newValue
-        valueLabel.stringValue = ParameterFormatter.valueText(for: newValue, display: descriptor.display)
+        valueLabel.stringValue = formattedValue(newValue)
         onChange?(newValue)
+    }
+
+    private func formattedValue(_ v: Int) -> String {
+        ParameterFormatter.valueText(for: v, display: descriptor.display,
+                                     context: contextProvider?() ?? .init())
     }
 
     @objc private func sliderChanged() {
@@ -233,6 +331,48 @@ final class ParameterRowView: NSView {
             newValue = parsed
         }
         apply(value: newValue)   // moves the slider + normalizes the text
+        onChange?(newValue)
+    }
+
+    /// Switches Hz↔Note, converting the current value so the pitch is
+    /// preserved across the switch, then normalizes and emits.
+    @objc private func tuneModeChanged() {
+        let toNote = tuneMode?.selectedSegment == 1
+        let newValue: Int
+        switch TuneValue(raw: value) {
+        case .hz(let h):
+            if toNote {
+                let n = TuneMap.nearestNote(forHz: h)
+                newValue = TuneValue.note(midi: n.midi, cents: n.cents).raw
+            } else {
+                newValue = h
+            }
+        case .note(let midi, let cents):
+            newValue = toNote ? TuneValue.note(midi: midi, cents: cents).raw
+                              : TuneMap.hz(forMidi: midi, cents: cents)
+        }
+        apply(value: newValue)   // repopulates the active editor + mode
+        onChange?(newValue)
+    }
+
+    /// Commits an edit from the Hz field, note popup, or cents field. Composes
+    /// only valid values (Hz clamped to range; note+cents always in-band), so
+    /// the device never sees a rejected Tune write.
+    @objc private func tuneCommitted() {
+        let newValue: Int
+        if tuneMode?.selectedSegment == 1 {
+            let midi = tuneNotePopup?.selectedTag() ?? 69
+            let typed = Int((tuneCentsField?.stringValue ?? "").trimmingCharacters(in: .whitespaces)) ?? 0
+            let cents = Swift.max(TuneMap.centsRange.lowerBound,
+                                  Swift.min(TuneMap.centsRange.upperBound, typed))
+            newValue = TuneValue.note(midi: midi, cents: cents).raw
+        } else {
+            let fallback: Int = { if case .hz(let h) = TuneValue(raw: value) { return h } else { return 440 } }()
+            let typed = Int((tuneHzField?.stringValue ?? "").trimmingCharacters(in: .whitespaces)) ?? fallback
+            newValue = Swift.max(TuneMap.hzRange.lowerBound,
+                                 Swift.min(TuneMap.hzRange.upperBound, typed))
+        }
+        apply(value: newValue)   // clamps/normalizes the fields
         onChange?(newValue)
     }
 

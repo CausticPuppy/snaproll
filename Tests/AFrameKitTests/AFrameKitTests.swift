@@ -225,6 +225,66 @@ final class ParameterFormatterTests: XCTestCase {
         XCTAssertEqual(
             ParameterFormatter.string(for: 20, display: .enumerated(ParameterMap.compRatioNames)),
             "INF:1")
+        // Mute sensitivity (inst idx 10/22/35): OFF/ON(n)/+offset/negative,
+        // matching captures/20260702-082318 MainMute renderings.
+        XCTAssertEqual(ParameterFormatter.string(for: 0, display: .muteSensitivity), "OFF")
+        XCTAssertEqual(ParameterFormatter.string(for: 65, display: .muteSensitivity), "+64")
+        XCTAssertEqual(ParameterFormatter.string(for: -90, display: .muteSensitivity), "-90")
+        XCTAssertEqual(
+            ParameterFormatter.string(for: 1, display: .muteSensitivity,
+                                      context: .init(globalMuteSens: 30)), "ON(30)")
+        // Without the sibling Mute Sens in context, "ON" renders bare.
+        XCTAssertEqual(ParameterFormatter.string(for: 1, display: .muteSensitivity), "ON")
+        // Tune: Hz zone verbatim; note zone as note/cents (idx 3/15/28),
+        // matching captures/20260708-204307/tune_probe.txt.
+        XCTAssertEqual(ParameterFormatter.string(for: 440, display: .tune), "440Hz")
+        XCTAssertEqual(ParameterFormatter.string(for: 12544, display: .tune), "12544Hz")
+        XCTAssertEqual(ParameterFormatter.string(for: -1150, display: .tune), "C0/-50")
+        XCTAssertEqual(ParameterFormatter.string(for: -1200, display: .tune), "C0/+00")
+        XCTAssertEqual(ParameterFormatter.string(for: -1250, display: .tune), "C#0/-50")
+        XCTAssertEqual(ParameterFormatter.string(for: -6900, display: .tune), "A4/+00")
+        XCTAssertEqual(ParameterFormatter.string(for: -12749, display: .tune), "G9/+49")
+    }
+
+    func testTuneValueEncodingAndConversion() {
+        // Raw round-trips through the structured representation.
+        for raw in [16, 440, 12544, -1150, -1200, -1250, -6900, -12700, -12749] {
+            XCTAssertEqual(TuneValue(raw: raw).raw, raw, "raw round trip \(raw)")
+        }
+        XCTAssertEqual(TuneValue(raw: -6900), .note(midi: 69, cents: 0))   // A4
+        XCTAssertEqual(TuneValue(raw: -1150), .note(midi: 12, cents: -50)) // C0/-50
+        // Pitch-preserving Hz<->note conversion (A4 = 440 Hz).
+        XCTAssertEqual(TuneMap.hz(forMidi: 69, cents: 0), 440)
+        XCTAssertEqual(TuneMap.nearestNote(forHz: 440).midi, 69)
+        XCTAssertEqual(TuneMap.nearestNote(forHz: 440).cents, 0)
+        // Conversions stay inside the valid bands.
+        XCTAssertTrue(TuneMap.hzRange.contains(TuneMap.hz(forMidi: 12, cents: -50)))
+        XCTAssertTrue(TuneMap.hzRange.contains(TuneMap.hz(forMidi: 127, cents: 49)))
+    }
+
+    func testTuneMatchesHardwareProbe() throws {
+        // Regression against the device's own LCD rendering of swept Tune values.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260708-204307/tune_probe.txt")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("hardware tune probe capture not available")
+        }
+        var checked = 0
+        for line in text.split(separator: "\n") {
+            let cols = line.split(separator: "|")
+            guard cols.count == 2,
+                  let raw = Int(cols[0].trimmingCharacters(in: .whitespaces)) else { continue }
+            let device = cols[1].trimmingCharacters(in: .whitespaces)
+            if device == "(rejected)" { continue }           // the two-band gap / out-of-range
+            let label = String(device.split(separator: ":").last ?? "")  // strip "MainTune:"
+                .replacingOccurrences(of: " ", with: "")     // drop the LCD's column padding
+            XCTAssertEqual(ParameterFormatter.string(for: raw, display: .tune), label, "raw \(raw)")
+            // Every accepted value round-trips through parse.
+            XCTAssertEqual(ParameterFormatter.parse(label, display: .tune), raw, "parse \(label)")
+            checked += 1
+        }
+        XCTAssertGreaterThan(checked, 30, "expected both MainTune and Sub Tune sweeps")
     }
 
     func testParseInvertsFormatting() {
@@ -240,12 +300,30 @@ final class ParameterFormatterTests: XCTestCase {
             (64, .pan),
             (40, .centerEdge),
             (4200, .bpmSyncTime),
+            (0, .muteSensitivity),   // "OFF"
+            (1, .muteSensitivity),   // "ON" (no context)
+            (2, .muteSensitivity),   // "+1"
+            (101, .muteSensitivity), // "+100"
+            (-90, .muteSensitivity), // "-90"
         ]
         for (value, display) in cases {
             let text = ParameterFormatter.string(for: value, display: display)
             XCTAssertEqual(ParameterFormatter.parse(text, display: display), value,
                            "round trip failed for \(text)")
         }
+        // The contextful "ON(n)" form parses back to 1, and "OFF" to 0.
+        XCTAssertEqual(ParameterFormatter.parse("ON(30)", display: .muteSensitivity), 1)
+        XCTAssertEqual(ParameterFormatter.parse("OFF", display: .muteSensitivity), 0)
+        // Tune parses both zones and tolerates spacing / case / omitted slash.
+        for (value, display) in [(16, ParameterDisplay.tune), (12544, .tune),
+                                 (-1150, .tune), (-1250, .tune), (-6900, .tune), (-12749, .tune)] {
+            let text = ParameterFormatter.string(for: value, display: display)
+            XCTAssertEqual(ParameterFormatter.parse(text, display: display), value,
+                           "tune round trip failed for \(text)")
+        }
+        XCTAssertEqual(ParameterFormatter.parse("440 Hz", display: .tune), 440)
+        XCTAssertEqual(ParameterFormatter.parse("a4", display: .tune), -6900)      // note, no cents
+        XCTAssertEqual(ParameterFormatter.parse("C#0/-50", display: .tune), -1250)
         // levelWithMode parses only the level portion (mode is the popup's).
         XCTAssertEqual(ParameterFormatter.parse("100 P+", display: .levelWithMode(modes: ["--", "P+", "P-"])), 100)
         // Bare-number tolerance and rejection of junk.

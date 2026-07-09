@@ -1,0 +1,56 @@
+=== INST MainTune idx 3 tone=SnappyFramey orig=30
+      16 | MainTune:   16Hz
+      30 | MainTune:   30Hz
+     100 | MainTune:  100Hz
+     440 | MainTune:  440Hz
+    1000 | MainTune: 1000Hz
+   12544 | MainTune:12544Hz
+   12545 | (rejected)
+      -1 | (rejected)
+    -100 | (rejected)
+    -600 | (rejected)
+   -1000 | (rejected)
+   -1149 | (rejected)
+   -1150 | MainTune:C0 /-50
+   -1190 | MainTune:C0 /-10
+   -1200 | MainTune:C0 /+00
+   -1210 | MainTune:C0 /+10
+   -1250 | MainTune:C#0/-50
+   -1300 | MainTune:C#0/+00
+   -2400 | MainTune:C1 /+00
+   -3600 | MainTune:C2 /+00
+   -6000 | MainTune:C4 /+00
+   -6900 | MainTune:A4 /+00
+   -9600 | MainTune:C7 /+00
+  -10800 | MainTune:C8 /+00
+  -12700 | MainTune:G9 /+00
+  -12749 | MainTune:G9 /+49
+  -12750 | (rejected)
+=== INST Sub Tune idx 15 tone=SnappyFramey orig=64
+      16 | Sub Tune:   16Hz
+      30 | Sub Tune:   30Hz
+     100 | Sub Tune:  100Hz
+     440 | Sub Tune:  440Hz
+    1000 | Sub Tune: 1000Hz
+   12544 | Sub Tune:12544Hz
+   12545 | (rejected)
+      -1 | (rejected)
+    -100 | (rejected)
+    -600 | (rejected)
+   -1000 | (rejected)
+   -1149 | (rejected)
+   -1150 | Sub Tune:C0 /-50
+   -1190 | Sub Tune:C0 /-10
+   -1200 | Sub Tune:C0 /+00
+   -1210 | Sub Tune:C0 /+10
+   -1250 | Sub Tune:C#0/-50
+   -1300 | Sub Tune:C#0/+00
+   -2400 | Sub Tune:C1 /+00
+   -3600 | Sub Tune:C2 /+00
+   -6000 | Sub Tune:C4 /+00
+   -6900 | Sub Tune:A4 /+00
+   -9600 | Sub Tune:C7 /+00
+  -10800 | Sub Tune:C8 /+00
+  -12700 | Sub Tune:G9 /+00
+  -12749 | Sub Tune:G9 /+49
+  -12750 | (rejected)

@@ -21,6 +21,7 @@ struct Options {
     var probe = false
     var sweep = false
     var sweepQuick = false
+    var tuneProbe = false
 }
 
 func parseOptions() -> Options {
@@ -34,6 +35,7 @@ func parseOptions() -> Options {
         case "--probe": opts.probe = true
         case "--sweep": opts.sweep = true
         case "--sweep-quick": opts.sweepQuick = true
+        case "--tune-probe": opts.tuneProbe = true
         default:
             FileHandle.standardError.write(Data("Unknown option: \(arg)\n".utf8))
             exit(2)
@@ -300,7 +302,60 @@ func runValueSweep() throws {
     save("param_sweep.txt", report.joined(separator: "\n") + "\n")
 }
 
-if opts.probe || opts.sweep || opts.sweepQuick {
+// --- Tune note/cents probe ----------------------------------------------
+//
+// The value sweep only range-searched the Tune parameters (idx 3/15/28) and
+// never recorded how the LCD renders them. Positive values read as Hz; the
+// negative zone is the note+cents mode shown in the manual as
+// "C0/-50 -- G9/+49". This writes a curated set of raw values to MainTune (and
+// spot-checks Sub Tune) with lcd=1 and reads the label back, to pin down the
+// raw -> note/cents mapping. Edit-buffer only; originals restored.
+
+func runTuneProbe() throws {
+    var report = [String]()
+
+    // Hz side + note-mode candidates spanning octaves, cents offsets, the
+    // predicted C0/-50 (-1150) and G9/+49 (-12749) endpoints, the sub-C0 gap,
+    // and just-past-the-edge values expected to be rejected.
+    let candidates = [
+        16, 30, 100, 440, 1000, 12544, 12545,          // Hz mode (12545 should NG)
+        -1, -100, -600, -1000, -1149,                   // sub-C0 gap probe
+        -1150, -1190, -1200, -1210, -1250,              // C0 region + cents
+        -1300, -2400, -3600, -6000, -6900,              // C#0, C1, C2, C4, A4(440)
+        -9600, -10800, -12700, -12749, -12750,          // C7?, C8, G9/0, G9/+49, NG
+    ]
+
+    func probeTune(_ sel: ToneSelect, idx: Int, tag: String) throws {
+        let (tone, _) = try client.extGetEditBuffText(sel)
+        let orig = Int(tone.values[idx])
+        report.append("=== \(tag) idx \(idx) tone=\(tone.name) orig=\(orig)")
+        log("== probing \(tag) Tune (idx \(idx))")
+        for v in candidates {
+            do {
+                try client.extChangeEditBuffParam(sel, index: idx, value: v, lcd: true)
+            } catch AFrameError.commandRejected {
+                report.append(String(format: "%8d | (rejected)", v))
+                continue
+            }
+            usleep(60_000)
+            let lcd = try client.getLCD(addr: 32, count: 16)
+            let line = String(format: "%8d | %@", v, lcd)
+            report.append(line)
+            log("  " + line)
+        }
+        _ = try? client.extChangeEditBuffParam(sel, index: idx, value: orig, lcd: false)
+    }
+
+    let info = try client.getCurrentGroupToneNum()
+    step("Probe MainTune (idx 3)") { try probeTune(.instrument, idx: 3, tag: "INST MainTune") }
+    step("Spot-check Sub Tune (idx 15)") { try probeTune(.instrument, idx: 15, tag: "INST Sub Tune") }
+    step("Restore selections") {
+        try client.extSelectGroup(group: info.group, num: info.number, lcd: true)
+    }
+    save("tune_probe.txt", report.joined(separator: "\n") + "\n")
+}
+
+if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe {
     step("GetVersion") {
         log("  \(try client.getVersion())")
     }
@@ -313,6 +368,7 @@ if opts.probe || opts.sweep || opts.sweepQuick {
     do {
         if opts.probe { try runParamProbe() }
         if opts.sweep || opts.sweepQuick { try runValueSweep() }
+        if opts.tuneProbe { try runTuneProbe() }
     } catch {
         log("PROBE FAILED: \(error.localizedDescription)")
         client.drain()
