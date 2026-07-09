@@ -2,7 +2,7 @@ import AppKit
 import AFrameKit
 import UniformTypeIdentifiers
 
-final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuItemValidation {
+final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuItemValidation, NSWindowDelegate {
     private let session = EditorSession()
     private let editorVC = EditorViewController()
     private var monitorWC: MonitorWindowController?
@@ -12,6 +12,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // slot patch numbers into names.
     private var instNames: [String] = []
     private var effectNames: [String] = []
+
+    /// Set once teardown starts, so the window closing as part of app
+    /// termination doesn't re-enter `NSApp.terminate`.
+    private var isShuttingDown = false
 
     // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -41,6 +45,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         window.minSize = NSSize(width: 720, height: 600)
         window.center()
         self.init(window: window)
+        window.delegate = self
         buildContent()
         buildToolbar()
         wireSession()
@@ -498,6 +503,19 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     }
 
     func shutDown() {
+        isShuttingDown = true
         session.disconnect()
+    }
+
+    // MARK: NSWindowDelegate
+
+    /// Closing the editor quits Snaproll. The app has no way to reopen the main
+    /// window, so without this an auxiliary window that outlives it (Settings,
+    /// Monitor, Group Editor) would keep the app running with nothing to show —
+    /// `applicationShouldTerminateAfterLastWindowClosed` never fires while one
+    /// of them is up.
+    func windowWillClose(_ notification: Notification) {
+        guard !isShuttingDown else { return }
+        NSApp.terminate(nil)
     }
 }
