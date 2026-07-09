@@ -52,7 +52,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         private func applyColors() {
             effectiveAppearance.performAsCurrentDrawingAppearance {
                 layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-                layer?.borderColor = NSColor.separatorColor.cgColor
+                layer?.borderColor = Palette.cardBorder.cgColor
             }
         }
     }
@@ -90,7 +90,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         nameRow.spacing = 6
 
         subtitleLabel.font = .systemFont(ofSize: 12)
-        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.textColor = Palette.secondaryText
 
         let header = NSStackView(views: [nameRow, subtitleLabel])
         header.orientation = .vertical
@@ -102,7 +102,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         columnsStack.spacing = 14
         columnsStack.distribution = .fillEqually
 
-        emptyLabel.textColor = .tertiaryLabelColor
+        emptyLabel.textColor = Palette.tertiaryText
         emptyLabel.font = .systemFont(ofSize: 14)
 
         let outer = NSStackView(views: [header, emptyLabel, columnsStack])
@@ -399,7 +399,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private func makeCard(section: String, params: [ParameterDescriptor], tone: ToneData) -> NSView {
         let title = NSTextField(labelWithString: section.uppercased())
         title.font = .systemFont(ofSize: 11, weight: .semibold)
-        title.textColor = .tertiaryLabelColor
+        title.textColor = Palette.sectionTitle
 
         // A dice in each section header randomizes just that section, sized to
         // match the toolbar's Randomize dice. Only shown for sections that
@@ -413,7 +413,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             dice.isBordered = false
             dice.imagePosition = .imageOnly
             dice.identifier = NSUserInterfaceItemIdentifier(section)
-            dice.contentTintColor = .secondaryLabelColor
+            dice.contentTintColor = Palette.controlGlyph
             dice.toolTip = "Randomize the \(section) section"
             let spacer = NSView()
             spacer.setContentHuggingPriority(.init(1), for: .horizontal)

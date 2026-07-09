@@ -30,7 +30,7 @@ final class PreferencesWindowController: NSWindowController {
 
         let caption = NSTextField(labelWithString: "“Auto” follows the macOS system setting.")
         caption.font = .systemFont(ofSize: 11)
-        caption.textColor = .secondaryLabelColor
+        caption.textColor = Palette.secondaryText
 
         let stack = NSStackView(views: [heading, appearanceControl, caption])
         stack.orientation = .vertical

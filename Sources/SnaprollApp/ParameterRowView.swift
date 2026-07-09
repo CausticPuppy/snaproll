@@ -72,7 +72,7 @@ final class ParameterRowView: NSView {
     private func build() {
         nameLabel.stringValue = descriptor.name
         nameLabel.font = .systemFont(ofSize: 11)
-        nameLabel.textColor = .secondaryLabelColor
+        nameLabel.textColor = Palette.parameterName
         nameLabel.alignment = .right
         nameLabel.lineBreakMode = .byTruncatingTail
         if case .custom(let note) = descriptor.display {
@@ -107,7 +107,7 @@ final class ParameterRowView: NSView {
         // value (e.g. "123" | "Hz"). Empty when the parameter has no fixed unit.
         unitLabel.stringValue = ParameterFormatter.unit(for: descriptor.display) ?? ""
         unitLabel.font = .systemFont(ofSize: 11)
-        unitLabel.textColor = .secondaryLabelColor
+        unitLabel.textColor = Palette.secondaryText
         unitLabel.alignment = .left
         unitLabel.lineBreakMode = .byClipping
         unitLabel.setContentHuggingPriority(.required, for: .horizontal)
@@ -224,7 +224,7 @@ final class ParameterRowView: NSView {
         tuneHzField = hz
         let hzUnit = NSTextField(labelWithString: "Hz")
         hzUnit.font = .systemFont(ofSize: 11)
-        hzUnit.textColor = .secondaryLabelColor
+        hzUnit.textColor = Palette.secondaryText
         let hzView = NSStackView(views: [hz, hzUnit])
         hzView.spacing = 3
         tuneHzView = hzView

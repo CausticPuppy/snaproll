@@ -86,7 +86,7 @@ final class GroupNavView: NSView {
     private static func caption(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text.uppercased())
         label.font = .systemFont(ofSize: 10, weight: .semibold)
-        label.textColor = .tertiaryLabelColor
+        label.textColor = Palette.sectionTitle
         return label
     }
 

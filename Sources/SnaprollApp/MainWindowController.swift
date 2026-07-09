@@ -79,10 +79,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         statusDot.font = .systemFont(ofSize: 9)
         statusDot.textColor = .systemRed
         statusLabel.font = .systemFont(ofSize: 11)
-        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.textColor = Palette.secondaryText
         statusLabel.lineBreakMode = .byTruncatingTail
         firmwareLabel.font = .systemFont(ofSize: 11)
-        firmwareLabel.textColor = .tertiaryLabelColor
+        firmwareLabel.textColor = Palette.tertiaryText
         firmwareLabel.alignment = .right
 
         let statusStack = NSStackView(views: [statusDot, statusLabel, NSView(), firmwareLabel])
