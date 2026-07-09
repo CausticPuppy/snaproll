@@ -110,3 +110,10 @@ The value sweep (`--sweep` / `--sweep-quick`, captures 20260702-082318 and
 Still open (cosmetic, sweep later if needed): auto-pan mode labels inside the
 mixer Pan composite (23 modes), negative-zone rendering of Tune parameters
 (editor-side note+cents display), and BPM division codes 3/5/6 labels.
+
+## Disclaimer
+
+Snaproll is an unofficial, independent tool with no affiliation with or
+endorsement by ATV Corporation. "aFrame" and "ATV" are trademarks of their
+respective owner and are used here only nominatively, to describe the hardware
+this editor is compatible with.
