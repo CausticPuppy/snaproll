@@ -2,14 +2,20 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowController: MainWindowController?
+    private let preferencesWC = PreferencesWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Install the saved appearance before any window is shown so there's no
+        // flash of the wrong mode.
+        AppearancePreference.current.apply()
+
         let controller = MainWindowController()
         mainWindowController = controller
         // Build the menu now that the controller exists, so File/View menu items
         // can target it directly (project load/save and the instrument/effect
-        // view switch live on the window controller).
-        NSApp.mainMenu = buildMainMenu(menuTarget: controller)
+        // view switch live on the window controller). Preferences targets the
+        // preferences controller.
+        NSApp.mainMenu = buildMainMenu(menuTarget: controller, preferencesTarget: preferencesWC)
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -25,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // Minimal main menu so ⌘Q works when launched via `swift run`.
-func buildMainMenu(menuTarget: AnyObject? = nil) -> NSMenu {
+func buildMainMenu(menuTarget: AnyObject? = nil, preferencesTarget: AnyObject? = nil) -> NSMenu {
     let mainMenu = NSMenu()
     let appMenuItem = NSMenuItem()
     mainMenu.addItem(appMenuItem)
@@ -33,6 +39,11 @@ func buildMainMenu(menuTarget: AnyObject? = nil) -> NSMenu {
     appMenu.addItem(withTitle: "About Snaproll",
                     action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                     keyEquivalent: "")
+    appMenu.addItem(.separator())
+    let settings = appMenu.addItem(withTitle: "Settings…",
+                                   action: #selector(PreferencesWindowController.showPreferences(_:)),
+                                   keyEquivalent: ",")
+    settings.target = preferencesTarget
     appMenu.addItem(.separator())
     appMenu.addItem(withTitle: "Quit Snaproll",
                     action: #selector(NSApplication.terminate(_:)),
