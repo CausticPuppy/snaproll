@@ -101,15 +101,17 @@ The value sweep (`--sweep` / `--sweep-quick`, captures 20260702-082318 and
   PressMode sets, Delay/Chorus/Wah types, AutoRevo, Ambience A–E, Bend curves
   A0–A8, Jx filter types.
 - **Composite encodings**: mixer Lev = level + 256×mode (`--`/`P+`/`P-`),
-  Snd = level + 256×mode (`M+`/`M-` = MASTER MIX BUS switch); SC = root×128 ±
-  scale code; Mute = 0 OFF / 1 ON(global) / offset-by-one ± sensitivity;
-  delay times: negative = BPM sync, −(division_code×256 + fine).
+  Snd = level + 256×mode (`M+`/`M-` = MASTER MIX BUS switch); SC = mode×256 +
+  scale (scale 1–29, 0 = OFF; 13 scale-control modes); Mute = 0 OFF /
+  1 ON(global) / offset-by-one ± sensitivity;
+  Tune = positive Hz (16–12544) / negative note mode −(MIDI×100 + cents),
+  C0–G9 with ±50 cents; delay times: negative = BPM sync,
+  −(division_code×256 + fine).
 - Tests enforce that every enumerated label table exactly covers its
   hardware-accepted range.
 
 Still open (cosmetic, sweep later if needed): auto-pan mode labels inside the
-mixer Pan composite (23 modes), negative-zone rendering of Tune parameters
-(editor-side note+cents display), and BPM division codes 3/5/6 labels.
+mixer Pan composite (23 modes) and BPM division codes 3/5/6 labels.
 
 ## Disclaimer
 

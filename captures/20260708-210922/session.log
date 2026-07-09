@@ -1,0 +1,134 @@
+aframe-capture session 20260708-210922
+target: /dev/cu.usbserial-0001
+output: /Users/jason/Documents/ATV aFrame/captures/20260708-210922
+
+== GetVersion
+  VER.2.00-BLD.001 2019/02/28 17:58:50
+== Enter external edit mode
+== Probe MainSC (idx 9)
+== probing INST MainSC SC (idx 9)
+         0 | MainSC:OFF      ?       
+         1 | MainSC:MTriad P??       
+         2 | MainSC:mTriad P??       
+         3 | MainSC:MPenta P??       
+         4 | MainSC:mPenta P??       
+         5 | MainSC:MScale P??       
+         6 | MainSC:mScale P??       
+         7 | MainSC:Sus    P??       
+         8 | MainSC:mHarmo P??       
+         9 | MainSC:mMelo  P??       
+        10 | MainSC:mBlues P??       
+        11 | MainSC:WholeT.P??       
+        12 | MainSC:AlteredP??       
+        13 | MainSC:Lydian P??       
+        14 | MainSC:Dorian P??       
+        15 | MainSC:Phrygi.P??       
+        16 | MainSC:Mxlydi.P??       
+        17 | MainSC:Arabic P??       
+        18 | MainSC:MHungarP??       
+        19 | MainSC:mHungarP??       
+        20 | MainSC:Hindu  P??       
+        21 | MainSC:Ryukyu P??       
+        22 | MainSC:MinnyouP??       
+        23 | MainSC:Miyako P??       
+        24 | MainSC:Ritsu1 P??       
+        25 | MainSC:Ritsu2 P??       
+        26 | MainSC:Ryo    P??       
+        27 | MainSC:5th    P??       
+        28 | MainSC:Octave P??       
+        29 | MainSC:ChrmticP??       
+        -1 | MainSC:MTriad P??       
+        -2 | MainSC:mTriad P??       
+        -5 | MainSC:MScale P??       
+      -251 | MainSC:MScale P??       
+      -123 | MainSC:P??      ?       
+         5 | MainSC:MScale P??       
+       133 | MainSC:P??      ?       
+       261 | MainSC:MScale P??       
+       389 | MainSC:P??      ?       
+       517 | MainSC:MScale ???       
+       645 | MainSC:???      ?       
+       773 | MainSC:MScale ???       
+       901 | MainSC:???      ?       
+      1029 | MainSC:MScale ???       
+      1157 | MainSC:???      ?       
+      1285 | MainSC:MScale S??       
+      1413 | MainSC:S??      ?       
+      1541 | MainSC:MScale S??       
+      1669 | MainSC:S??      ?       
+      1797 | MainSC:MScale S??       
+      1925 | MainSC:S??      ?       
+      2053 | MainSC:MScale S??       
+      2181 | MainSC:S??      ?       
+      2309 | MainSC:MScale K??       
+      2437 | MainSC:K??      ?       
+      2565 | MainSC:MScale K??       
+      2693 | MainSC:K??      ?       
+      2821 | MainSC:MScale K??       
+      2949 | MainSC:K??      ?       
+      3077 | MainSC:MScale K??       
+== Spot-check XtraSC (idx 77)
+== probing INST XtraSC SC (idx 77)
+         0 | XtraSC:OFF      ?       
+         1 | XtraSC:MTriad P??       
+         2 | XtraSC:mTriad P??       
+         3 | XtraSC:MPenta P??       
+         4 | XtraSC:mPenta P??       
+         5 | XtraSC:MScale P??       
+         6 | XtraSC:mScale P??       
+         7 | XtraSC:Sus    P??       
+         8 | XtraSC:mHarmo P??       
+         9 | XtraSC:mMelo  P??       
+        10 | XtraSC:mBlues P??       
+        11 | XtraSC:WholeT.P??       
+        12 | XtraSC:AlteredP??       
+        13 | XtraSC:Lydian P??       
+        14 | XtraSC:Dorian P??       
+        15 | XtraSC:Phrygi.P??       
+        16 | XtraSC:Mxlydi.P??       
+        17 | XtraSC:Arabic P??       
+        18 | XtraSC:MHungarP??       
+        19 | XtraSC:mHungarP??       
+        20 | XtraSC:Hindu  P??       
+        21 | XtraSC:Ryukyu P??       
+        22 | XtraSC:MinnyouP??       
+        23 | XtraSC:Miyako P??       
+        24 | XtraSC:Ritsu1 P??       
+        25 | XtraSC:Ritsu2 P??       
+        26 | XtraSC:Ryo    P??       
+        27 | XtraSC:5th    P??       
+        28 | XtraSC:Octave P??       
+        29 | XtraSC:ChrmticP??       
+        -1 | XtraSC:MTriad P??       
+        -2 | XtraSC:mTriad P??       
+        -5 | XtraSC:MScale P??       
+      -251 | XtraSC:MScale P??       
+      -123 | XtraSC:P??      ?       
+         5 | XtraSC:MScale P??       
+       133 | XtraSC:P??      ?       
+       261 | XtraSC:MScale P??       
+       389 | XtraSC:P??      ?       
+       517 | XtraSC:MScale ???       
+       645 | XtraSC:???      ?       
+       773 | XtraSC:MScale ???       
+       901 | XtraSC:???      ?       
+      1029 | XtraSC:MScale ???       
+      1157 | XtraSC:???      ?       
+      1285 | XtraSC:MScale S??       
+      1413 | XtraSC:S??      ?       
+      1541 | XtraSC:MScale S??       
+      1669 | XtraSC:S??      ?       
+      1797 | XtraSC:MScale S??       
+      1925 | XtraSC:S??      ?       
+      2053 | XtraSC:MScale S??       
+      2181 | XtraSC:S??      ?       
+      2309 | XtraSC:MScale K??       
+      2437 | XtraSC:K??      ?       
+      2565 | XtraSC:MScale K??       
+      2693 | XtraSC:K??      ?       
+      2821 | XtraSC:MScale K??       
+      2949 | XtraSC:K??      ?       
+      3077 | XtraSC:MScale K??       
+== Restore selections
+  saved sc_probe.txt (4533 bytes)
+== Leave external edit mode

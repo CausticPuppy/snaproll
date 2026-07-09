@@ -48,6 +48,8 @@ public enum ParameterFormatter {
             return fine == 0 ? "♩\(name)" : "♩\(name) +\(fine)"
         case .tune:
             return TuneMap.label(raw: value)
+        case .scaleControl:
+            return ScaleControlMap.label(raw: value)
         case .muteSensitivity:
             switch value {
             case 0: return "OFF"
@@ -135,7 +137,8 @@ public enum ParameterFormatter {
             return Int(s)                                // negative or raw entry
         case .custom:
             return Int(s)
-        case .onOff, .enumerated:
+        case .onOff, .enumerated, .scaleControl:
+            // Driven by dedicated controls (two popups); never typed.
             return nil
         }
     }

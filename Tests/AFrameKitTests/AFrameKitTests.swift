@@ -244,6 +244,15 @@ final class ParameterFormatterTests: XCTestCase {
         XCTAssertEqual(ParameterFormatter.string(for: -1250, display: .tune), "C#0/-50")
         XCTAssertEqual(ParameterFormatter.string(for: -6900, display: .tune), "A4/+00")
         XCTAssertEqual(ParameterFormatter.string(for: -12749, display: .tune), "G9/+49")
+        // SC (inst idx 9/21/77): OFF, or scale + one of 13 modes packed as
+        // mode×256 + scale, matching captures/20260708-210922/sc_probe.txt.
+        XCTAssertEqual(ParameterFormatter.string(for: 0, display: .scaleControl), "OFF")
+        XCTAssertEqual(ParameterFormatter.string(for: 5, display: .scaleControl),
+                       "MScale \u{00B7} Pressure \u{2191}")     // mode 0
+        XCTAssertEqual(ParameterFormatter.string(for: 261, display: .scaleControl),
+                       "MScale \u{00B7} Pressure \u{2193}")     // mode 1
+        XCTAssertEqual(ParameterFormatter.string(for: 3101, display: .scaleControl),
+                       "Chrmtic \u{00B7} Skip \u{21C5}")        // mode 12, scale 29
     }
 
     func testTuneValueEncodingAndConversion() {
@@ -285,6 +294,55 @@ final class ParameterFormatterTests: XCTestCase {
             checked += 1
         }
         XCTAssertGreaterThan(checked, 30, "expected both MainTune and Sub Tune sweeps")
+    }
+
+    func testSCValueEncoding() {
+        XCTAssertEqual(SCValue(raw: 0), .off)
+        XCTAssertEqual(SCValue(raw: 5), .scale(code: 5, mode: 0))
+        XCTAssertEqual(SCValue(raw: 261), .scale(code: 5, mode: 1))     // +256
+        XCTAssertEqual(SCValue(raw: 3101), .scale(code: 29, mode: 12))  // max
+        // Raw round-trips through the structured representation.
+        for raw in [0, 1, 5, 29, 261, 517, 1285, 2309, 3101] {
+            XCTAssertEqual(SCValue(raw: raw).raw, raw, "raw round trip \(raw)")
+        }
+        // Off-grid values (device-tolerated, meaningless) collapse to OFF.
+        XCTAssertEqual(SCValue(raw: 133), .off)   // scale part 133 > 29
+        XCTAssertEqual(SCValue(raw: -251), .off)  // negative headroom
+        XCTAssertEqual(SCValue(raw: 256), .off)   // scale part 0
+        // The 13 modes group as the manual lists them (Pressure/Random/Seq/Skip).
+        XCTAssertEqual(ScaleControlMap.modeNames.count, 13)
+    }
+
+    func testSCMatchesHardwareProbe() throws {
+        // Regression against the device's own LCD rendering of swept SC values.
+        // The mode glyphs are arrow chars the LCD reader can't decode, so this
+        // asserts the scale field (the composite's low byte + the scale table).
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures/20260708-210922/sc_probe.txt")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("hardware SC probe capture not available")
+        }
+        var inScaleAxis = false
+        var checked = 0
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("-- scale axis") { inScaleAxis = true; continue }
+            if line.hasPrefix("-- mode axis") { inScaleAxis = false; continue }
+            guard inScaleAxis else { continue }
+            let cols = line.split(separator: "|")
+            guard cols.count == 2,
+                  let raw = Int(cols[0].trimmingCharacters(in: .whitespaces)),
+                  (0...29).contains(raw) else { continue }        // skip the small-negative aliases
+            // The LCD packs a 7-char scale field right after "XxxxSC:".
+            let lcd = String(cols[1])
+            guard let colon = lcd.range(of: "SC:") else { continue }
+            let field = String(lcd[colon.upperBound...].prefix(7))
+                .trimmingCharacters(in: .whitespaces)
+            let expected = raw == 0 ? "OFF" : ScaleControlMap.scaleName(raw)
+            XCTAssertEqual(field, expected, "raw \(raw)")
+            checked += 1
+        }
+        XCTAssertGreaterThan(checked, 50, "expected MainSC and XtraSC scale sweeps")
     }
 
     func testParseInvertsFormatting() {
@@ -332,6 +390,7 @@ final class ParameterFormatterTests: XCTestCase {
         XCTAssertNil(ParameterFormatter.parse("", display: .signed(unit: nil)))
         // Controls with their own value don't accept typed input.
         XCTAssertNil(ParameterFormatter.parse("On", display: .onOff))
+        XCTAssertNil(ParameterFormatter.parse("MScale \u{00B7} Pressure \u{2191}", display: .scaleControl))
     }
 
     func testUnitSplitsFromValueText() {

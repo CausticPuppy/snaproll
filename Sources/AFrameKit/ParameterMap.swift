@@ -41,6 +41,11 @@ public enum ParameterDisplay: Equatable {
     /// verbatim. Range -100...101. (LCD-confirmed: captures/20260702-082318,
     /// idx 10/22/35.)
     case muteSensitivity
+    /// Instrument Main/Sub/Xtra "scale control by pressure" (`SCValue`). Packs a
+    /// musical scale and a scale-control mode as `mode × 256 + scale`, scale
+    /// 1...29 (0 = OFF) and mode 0...12. Hardware-confirmed:
+    /// captures/20260708-210922/sc_probe.txt.
+    case scaleControl
     /// Known formatting that is not yet fully modeled (documented in `note`).
     case custom(note: String)
 }
@@ -99,8 +104,8 @@ public enum ParameterMap {
     ]
 
     /// Pitch-pressure scale types (SC), magnitude codes 1–29 (0 = OFF).
-    /// The stored value is a composite: scale ± code + root × 128
-    /// (observed range -256...3101 = codes with roots up to 24).
+    /// The stored value is a composite `mode × 256 + scale` (see `SCValue`);
+    /// this table names the low `scale` part.
     public static let scaleNames = [
         1: "MTriad", 2: "mTriad", 3: "MPenta", 4: "mPenta", 5: "MScale",
         6: "mScale", 7: "Sus", 8: "mHarmo", 9: "mMelo", 10: "mBlues",
@@ -139,8 +144,7 @@ public enum ParameterMap {
         Dictionary(uniqueKeysWithValues: overtoneNames.enumerated().map { ($0, $1) }))
     private static let xtraType = ParameterDisplay.enumerated(
         Dictionary(uniqueKeysWithValues: xtraTypeNames.enumerated().map { ($0, $1) }))
-    private static let scale = ParameterDisplay.custom(
-        note: "composite root×128 ± scale code; see ParameterMap.scaleNames")
+    private static let scale = ParameterDisplay.scaleControl
     private static let muteMode = ParameterDisplay.muteSensitivity
 
     /// Instrument parameter index of the global "Mute Sens" value that the

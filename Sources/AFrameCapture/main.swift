@@ -22,6 +22,7 @@ struct Options {
     var sweep = false
     var sweepQuick = false
     var tuneProbe = false
+    var scProbe = false
 }
 
 func parseOptions() -> Options {
@@ -36,6 +37,7 @@ func parseOptions() -> Options {
         case "--sweep": opts.sweep = true
         case "--sweep-quick": opts.sweepQuick = true
         case "--tune-probe": opts.tuneProbe = true
+        case "--sc-probe": opts.scProbe = true
         default:
             FileHandle.standardError.write(Data("Unknown option: \(arg)\n".utf8))
             exit(2)
@@ -355,7 +357,64 @@ func runTuneProbe() throws {
     save("tune_probe.txt", report.joined(separator: "\n") + "\n")
 }
 
-if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe {
+// --- SC scale + scale-control-mode probe --------------------------------
+//
+// MainSC/SubSC/XtraSC (idx 9/21/77) are a composite of a musical scale
+// (OFF, MTriad..Chrmtic = codes 0..29) and one of 13 "scale control modes"
+// shown as a short code to the right of the scale name on the LCD (manual
+// p.20). The value sweep truncated the LCD right where that mode code begins,
+// so the mode encoding is unknown. This writes scale 0..29 at mode offset 0 to
+// confirm the scale axis, then holds a fixed scale (MScale=5) and sweeps the
+// high part (+/-k*128) to enumerate the modes and their codes. The LCD is read
+// wider than 16 chars so the mode glyph isn't clipped. Edit-buffer only;
+// originals restored.
+
+func runSCProbe() throws {
+    var report = [String]()
+
+    // Scale axis (mode offset 0) then mode axis at a fixed, distinctive scale.
+    let scaleAxis = Array(0...29) + [-1, -2, -5]
+    let fixedScale = 5                                  // MScale
+    let modeOffsets = Array(-2...24).map { $0 * 128 }   // spans [-256, 3072]
+
+    func probeSC(_ sel: ToneSelect, idx: Int, tag: String) throws {
+        let (tone, _) = try client.extGetEditBuffText(sel)
+        let orig = Int(tone.values[idx])
+        report.append("=== \(tag) idx \(idx) tone=\(tone.name) orig=\(orig)")
+        log("== probing \(tag) SC (idx \(idx))")
+
+        func write(_ v: Int, _ note: String) throws {
+            do {
+                try client.extChangeEditBuffParam(sel, index: idx, value: v, lcd: true)
+            } catch AFrameError.commandRejected {
+                report.append(String(format: "%8d | (rejected) %@", v, note))
+                return
+            }
+            usleep(60_000)
+            let lcd = try client.getLCD(addr: 32, count: 24)
+            let line = String(format: "%8d | %@", v, lcd)
+            report.append(line)
+            log("  " + line)
+        }
+
+        report.append("-- scale axis (mode offset 0)")
+        for s in scaleAxis { try write(s, "scale=\(s)") }
+        report.append("-- mode axis (scale=\(fixedScale) MScale)")
+        for off in modeOffsets { try write(off + fixedScale, "off=\(off)") }
+
+        _ = try? client.extChangeEditBuffParam(sel, index: idx, value: orig, lcd: false)
+    }
+
+    let info = try client.getCurrentGroupToneNum()
+    step("Probe MainSC (idx 9)") { try probeSC(.instrument, idx: 9, tag: "INST MainSC") }
+    step("Spot-check XtraSC (idx 77)") { try probeSC(.instrument, idx: 77, tag: "INST XtraSC") }
+    step("Restore selections") {
+        try client.extSelectGroup(group: info.group, num: info.number, lcd: true)
+    }
+    save("sc_probe.txt", report.joined(separator: "\n") + "\n")
+}
+
+if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe {
     step("GetVersion") {
         log("  \(try client.getVersion())")
     }
@@ -369,6 +428,7 @@ if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe {
         if opts.probe { try runParamProbe() }
         if opts.sweep || opts.sweepQuick { try runValueSweep() }
         if opts.tuneProbe { try runTuneProbe() }
+        if opts.scProbe { try runSCProbe() }
     } catch {
         log("PROBE FAILED: \(error.localizedDescription)")
         client.drain()

@@ -25,7 +25,7 @@ final class ParameterRowView: NSView {
     /// ranges can be set precisely without fighting the slider's resolution.
     private var valueIsTypeable: Bool {
         switch descriptor.display {
-        case .onOff, .enumerated, .tune: return false
+        case .onOff, .enumerated, .tune, .scaleControl: return false
         default: return true
         }
     }
@@ -43,6 +43,11 @@ final class ParameterRowView: NSView {
     private var tuneNotePopup: NSPopUpButton?
     private var tuneCentsField: NSTextField?
     private var tuneNoteView: NSView?
+
+    // SC control: a scale popup (OFF, MTriad…Chrmtic) + a scale-control-mode
+    // popup (13 modes). The mode popup is disabled while the scale is OFF.
+    private var scScalePopup: NSPopUpButton?
+    private var scModePopup: NSPopUpButton?
 
     static let rowHeight: CGFloat = 26
 
@@ -71,6 +76,8 @@ final class ParameterRowView: NSView {
             toolTip = "0 = OFF · 1 = ON (uses the tone's Mute Sens) · ±N = per-tone sensitivity offset"
         } else if case .tune = descriptor.display {
             toolTip = "Tuning as absolute frequency (16–12544 Hz) or a note (C0–G9) plus cents (−50…+49)"
+        } else if case .scaleControl = descriptor.display {
+            toolTip = "Pressure scale: a musical scale plus one of 13 note-sequencing modes (arrows = up/down direction)"
         }
 
         valueLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
@@ -178,6 +185,10 @@ final class ParameterRowView: NSView {
             valueStack?.isHidden = true  // controls carry the readout; reclaim the width
             return makeTuneControl()
 
+        case .scaleControl:
+            valueStack?.isHidden = true  // both popups carry the readout
+            return makeSCControl()
+
         default:
             let bounds = range ?? -32768...32767
             return makeSlider(min: bounds.lowerBound, max: bounds.upperBound)
@@ -240,6 +251,38 @@ final class ParameterRowView: NSView {
         return stack
     }
 
+    private func makeSCControl() -> NSView {
+        let scale = NSPopUpButton(frame: .zero, pullsDown: false)
+        scale.controlSize = .small
+        scale.font = .systemFont(ofSize: 11)
+        scale.addItem(withTitle: "OFF")
+        scale.lastItem?.tag = 0
+        for code in ScaleControlMap.scaleCodes {
+            scale.addItem(withTitle: ScaleControlMap.scaleName(code))
+            scale.lastItem?.tag = code
+        }
+        scale.target = self
+        scale.action = #selector(scChanged)
+        scScalePopup = scale
+
+        let mode = NSPopUpButton(frame: .zero, pullsDown: false)
+        mode.controlSize = .small
+        mode.font = .systemFont(ofSize: 11)
+        for (i, name) in ScaleControlMap.modeNames.enumerated() {
+            mode.addItem(withTitle: name)
+            mode.lastItem?.tag = i
+        }
+        mode.target = self
+        mode.action = #selector(scChanged)
+        scModePopup = mode
+
+        let stack = NSStackView(views: [scale, mode])
+        stack.orientation = .horizontal
+        stack.spacing = 4
+        stack.distribution = .fillEqually
+        return stack
+    }
+
     private func makeSlider(min: Int, max: Int) -> NSSlider {
         let s = NSSlider(value: 0, minValue: Double(min), maxValue: Double(max),
                          target: self, action: #selector(sliderChanged))
@@ -278,6 +321,16 @@ final class ParameterRowView: NSView {
                 tuneNoteView?.isHidden = false
                 tuneNotePopup?.selectItem(withTag: midi)
                 tuneCentsField?.stringValue = TuneMap.centsString(cents)
+            }
+        case .scaleControl:
+            switch SCValue(raw: newValue) {
+            case .off:
+                scScalePopup?.selectItem(withTag: 0)
+                scModePopup?.isEnabled = false
+            case .scale(let code, let mode):
+                scScalePopup?.selectItem(withTag: code)
+                scModePopup?.selectItem(withTag: mode)
+                scModePopup?.isEnabled = true
             }
         default:
             slider?.integerValue = newValue
@@ -378,6 +431,20 @@ final class ParameterRowView: NSView {
 
     @objc private func enumChanged() {
         emit(enumPopup?.selectedTag() ?? 0)
+    }
+
+    /// Composes an SC value from the scale + mode popups. OFF (scale tag 0)
+    /// disables the mode popup and emits 0; otherwise `mode × 256 + scale`.
+    @objc private func scChanged() {
+        let code = scScalePopup?.selectedTag() ?? 0
+        if code == 0 {
+            scModePopup?.isEnabled = false
+            emit(0)
+        } else {
+            scModePopup?.isEnabled = true
+            let mode = scModePopup?.selectedTag() ?? 0
+            emit(SCValue.scale(code: code, mode: mode).raw)
+        }
     }
 
     @objc private func toggleChanged() {
