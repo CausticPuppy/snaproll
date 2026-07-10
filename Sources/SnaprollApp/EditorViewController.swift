@@ -387,14 +387,19 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             stack.orientation = .vertical
             stack.alignment = .leading
             stack.spacing = 14
-            // Columns are top-aligned and differ in height. Without this, a
-            // short column stretches to match the tallest one and the slack is
-            // absorbed by an arbitrary card's header, which balloons and pushes
-            // that card's rows out of view.
             stack.setHuggingPriority(.defaultHigh, for: .vertical)
             for card in column {
                 card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
             }
+            // Columns differ in height, and a card has no intrinsic height of
+            // its own (its inner stack is pinned to both card edges). Whatever
+            // vertical slack a column is given would otherwise be absorbed by
+            // an arbitrary card, padding it out or — before its header learned
+            // to hug — pushing its rows out of view. This spacer hugs far more
+            // weakly than any card, so it soaks up the slack instead.
+            let spacer = NSView()
+            spacer.setContentHuggingPriority(.init(1), for: .vertical)
+            stack.addArrangedSubview(spacer)
             columnsStack.addArrangedSubview(stack)
         }
 
