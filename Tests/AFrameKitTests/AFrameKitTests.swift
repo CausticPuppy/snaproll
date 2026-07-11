@@ -54,6 +54,72 @@ final class AFrameLZTests: XCTestCase {
 }
 
 final class ModelCodecTests: XCTestCase {
+    func testEncodeMatchesRealDeviceCapture() throws {
+        // encode() must reproduce a real device image byte-for-byte —
+        // settles the "working hypothesis" flags on the project layout and
+        // trailing checksum before any code writes .prj files. Sweeps every
+        // capture that carries a decoded project image.
+        let capturesDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("captures")
+        let images = ((try? FileManager.default.contentsOfDirectory(
+            at: capturesDir, includingPropertiesForKeys: nil)) ?? [])
+            .map { $0.appendingPathComponent("project_decoded.bin") }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .sorted { $0.path < $1.path }
+        guard !images.isEmpty else {
+            throw XCTSkip("hardware capture not available")
+        }
+        for url in images {
+            let image = try Data(contentsOf: url)
+            XCTAssertEqual(image.count, DSPProject.byteSize, url.path)
+            let project = try DSPProject.decode(image, verifyChecksum: true)
+            XCTAssertEqual(project.encode(), image,
+                           "re-encode differs from device image: \(url.path)")
+        }
+    }
+
+    func testNakedPatch() throws {
+        let naked = DSPPatch.naked()
+        XCTAssertEqual(naked.name, "NAKED")
+        XCTAssertEqual(naked.prmNum, 0)
+        // Storage layout round trip (192-byte project slot).
+        XCTAssertEqual(try DSPPatch.decode(naked.encode()), naked)
+        // Transfer layout round trip: prmNum 0 gives the minimum 26-byte
+        // aFE7 payload; decodeTransfer must accept it.
+        let payload = naked.encodeTransfer()
+        XCTAssertEqual(payload.count, 26)
+        XCTAssertEqual(try DSPPatch.decodeTransfer(payload), naked)
+    }
+
+    func testSetToneSet() throws {
+        var project = MockAFrame.demoProject()
+        let inst = DSPPatch(algoNum: 0, name: "CopiedInst", prmNum: 3, data: [1, 2, 3])
+        let fx = DSPPatch(algoNum: 5, name: "CopiedFx", prmNum: 2, data: [9, 8])
+        let origEffect7 = project.effectPatch[7]
+
+        // Both halves.
+        project.setToneSet(num: 3, inst: inst, effect: fx)
+        XCTAssertEqual(project.instPatch[3], inst)
+        XCTAssertEqual(project.effectPatch[3], fx)
+
+        // nil leaves a half untouched.
+        project.setToneSet(num: 7, inst: inst, effect: nil)
+        XCTAssertEqual(project.instPatch[7], inst)
+        XCTAssertEqual(project.effectPatch[7], origEffect7)
+
+        // Out of range is a no-op.
+        let before = project
+        project.setToneSet(num: 80, inst: inst, effect: fx)
+        project.setToneSet(num: -1, inst: inst, effect: fx)
+        XCTAssertEqual(project, before)
+
+        // Survives an encode/decode round trip.
+        let decoded = try DSPProject.decode(project.encode(), verifyChecksum: true)
+        XCTAssertEqual(decoded.instPatch[3], inst)
+        XCTAssertEqual(decoded.effectPatch[3], fx)
+    }
+
     func testPatchRoundTrip() throws {
         var data = [Int16](repeating: 0, count: DSPPatch.dataCount)
         for i in 0..<67 { data[i] = Int16(i * 3 - 40) }
@@ -563,6 +629,173 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(names[7], "My Tone")
         let data = try client.getProjectToneData(.instrument, num: 7)
         XCTAssertEqual(data.values[3], 99)
+    }
+
+    func testGroupMapDiff() throws {
+        let base = [
+            GroupList(max: 3, slots: [GroupSlot(inst: 0, effect: 0),
+                                      GroupSlot(inst: 1, effect: 1),
+                                      GroupSlot(inst: 2, effect: 2),
+                                      GroupSlot(inst: 9, effect: 9)]),
+            GroupList(max: 2, slots: [GroupSlot(inst: 5, effect: 5),
+                                      GroupSlot(inst: 6, effect: 6)]),
+        ]
+
+        // Identical maps → no writes.
+        XCTAssertTrue(GroupMap.diff(current: base, desired: base).isEmpty)
+
+        // One slot changed → one write carrying the group's MAX.
+        var oneSlot = base
+        oneSlot[0].slots[1] = GroupSlot(inst: 7, effect: 8)
+        XCTAssertEqual(GroupMap.diff(current: base, desired: oneSlot),
+                       [GroupMap.Change(group: 0, num: 1,
+                                        slot: GroupSlot(inst: 7, effect: 8), max: 3)])
+
+        // MAX-only change → a single rewrite of slot 0 with its contents.
+        var maxOnly = base
+        maxOnly[1].max = 1
+        XCTAssertEqual(GroupMap.diff(current: base, desired: maxOnly),
+                       [GroupMap.Change(group: 1, num: 0,
+                                        slot: GroupSlot(inst: 5, effect: 5), max: 1)])
+
+        // Growing MAX exposes a slot that differs → written; hidden-tail
+        // differences beyond MAX are ignored.
+        var grown = base
+        grown[0].max = 4
+        grown[0].slots[3] = GroupSlot(inst: 4, effect: 4)
+        var withJunkTail = base
+        withJunkTail[0].slots[3] = GroupSlot(inst: 30, effect: 30)  // hidden at max 3
+        let changes = GroupMap.diff(current: withJunkTail, desired: grown)
+        XCTAssertEqual(changes,
+                       [GroupMap.Change(group: 0, num: 3,
+                                        slot: GroupSlot(inst: 4, effect: 4), max: 4)])
+        XCTAssertTrue(GroupMap.diff(current: base, desired: withJunkTail).isEmpty)
+
+        // A slot change in a group whose MAX also changed does not add the
+        // extra MAX-only write.
+        var both = base
+        both[0].max = 2
+        both[0].slots[0] = GroupSlot(inst: 11, effect: 12)
+        XCTAssertEqual(GroupMap.diff(current: base, desired: both),
+                       [GroupMap.Change(group: 0, num: 0,
+                                        slot: GroupSlot(inst: 11, effect: 12), max: 2)])
+    }
+
+    func testWriteGroupMapSequenceAgainstMock() throws {
+        // Drives the exact command sequence EditorSession.writeGroupMap uses
+        // (aFE2 inst + aFE2 effect + aFE1 per change, then restore) and
+        // checks the mock's project ends up matching the desired map.
+        try client.setExtMode(true)
+        try client.extSelectGroup(group: 2, num: 1)
+        let prior = try client.getCurrentGroupToneNum()
+
+        var current = [GroupList]()
+        for g in 0..<DSPProject.memoryGroups {
+            current.append(try client.getProjectGroupList(group: g))
+        }
+        var desired = current
+        desired[0].slots[0] = GroupSlot(inst: 42, effect: 17)   // change a slot
+        desired[0].slots.insert(GroupSlot(inst: 3, effect: 3), at: 1)  // insert
+        desired[0].slots.removeLast()
+        desired[0].max += 1
+        desired[4].max = 5                                       // MAX-only change
+
+        for c in GroupMap.diff(current: current, desired: desired) {
+            try client.extChangeToneNum(.instrument, num: c.slot.inst)
+            try client.extChangeToneNum(.effect, num: c.slot.effect)
+            try client.extWriteGroup(group: c.group, num: c.num, max: c.max)
+        }
+        try client.extSelectGroup(group: prior.group, num: prior.number)
+        try client.extChangeToneNum(.instrument, num: prior.instNum)
+        try client.extChangeToneNum(.effect, num: prior.effectNum)
+
+        // Device now matches the desired visible region…
+        for g in 0..<DSPProject.memoryGroups {
+            let list = try client.getProjectGroupList(group: g)
+            XCTAssertEqual(list.max, desired[g].max, "group \(g) MAX")
+            for n in 0..<desired[g].max {
+                XCTAssertEqual(list.slots[n], desired[g].slots[n], "group \(g) slot \(n)")
+            }
+        }
+        // …a second diff is empty…
+        var after = [GroupList]()
+        for g in 0..<DSPProject.memoryGroups {
+            after.append(try client.getProjectGroupList(group: g))
+        }
+        XCTAssertTrue(GroupMap.diff(current: after, desired: desired).isEmpty)
+        // …and the prior position and tone selections are restored.
+        let restored = try client.getCurrentGroupToneNum()
+        XCTAssertEqual(restored.group, prior.group)
+        XCTAssertEqual(restored.number, prior.number)
+        XCTAssertEqual(restored.instNum, prior.instNum)
+        XCTAssertEqual(restored.effectNum, prior.effectNum)
+    }
+
+    func testProjectFileRoundTrip() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("snaproll-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("roundtrip.prj")
+
+        var project = MockAFrame.demoProject()
+        project.setToneSet(num: 12,
+                           inst: DSPPatch(algoNum: 0, name: "FileInst", prmNum: 2, data: [4, 5]),
+                           effect: DSPPatch(algoNum: 3, name: "FileFx", prmNum: 1, data: [6]))
+        try ProjectFile.save(project, to: url)
+        let loaded = try ProjectFile.load(url)
+        XCTAssertEqual(loaded, project)
+        XCTAssertEqual(loaded.instPatch[12].name, "FileInst")
+
+        // A corrupted image must be rejected (checksum).
+        var bytes = try Data(contentsOf: url)
+        bytes[100] ^= 0xFF
+        try bytes.write(to: url)
+        XCTAssertThrowsError(try ProjectFile.load(url))
+    }
+
+    func testWriteToneSetsSequenceAgainstMock() throws {
+        // Drives the command sequence EditorSession.writeToneSets uses
+        // (aFE7 BIN + aFE5 per half, restore selections afterward) and checks
+        // the mock's project carries the new tone sets.
+        try client.setExtMode(true)
+        try client.extChangeToneNum(.instrument, num: 2)
+        try client.extChangeToneNum(.effect, num: 3)
+        let prior = try client.getCurrentGroupToneNum()
+
+        let sets: [(num: Int, inst: DSPPatch?, effect: DSPPatch?)] = [
+            (5, DSPPatch(algoNum: 0, name: "CopiedI5", prmNum: 3, data: [1, 2, 3]),
+                DSPPatch(algoNum: 2, name: "CopiedE5", prmNum: 2, data: [7, 8])),
+            (9, DSPPatch(algoNum: 0, name: "CopiedI9", prmNum: 1, data: [42]), nil),
+            (11, DSPPatch.naked(), DSPPatch.naked()),
+        ]
+        for set in sets {
+            if let inst = set.inst {
+                try client.extSetEditBuff(.instrument, patch: inst)
+                try client.extWriteEditBuffToProject(.instrument, num: set.num)
+            }
+            if let effect = set.effect {
+                try client.extSetEditBuff(.effect, patch: effect)
+                try client.extWriteEditBuffToProject(.effect, num: set.num)
+            }
+        }
+        try client.extChangeToneNum(.instrument, num: prior.instNum)
+        try client.extChangeToneNum(.effect, num: prior.effectNum)
+
+        // Copies landed…
+        let instNames = try client.getProjectToneNameList(.instrument)
+        let fxNames = try client.getProjectToneNameList(.effect)
+        XCTAssertEqual(instNames[5], "CopiedI5")
+        XCTAssertEqual(fxNames[5], "CopiedE5")
+        XCTAssertEqual(instNames[9], "CopiedI9")
+        XCTAssertEqual(instNames[11], "NAKED")
+        XCTAssertEqual(fxNames[11], "NAKED")
+        // …a nil half left the effect untouched…
+        XCTAssertNotEqual(fxNames[9], "NAKED")
+        // …and the prior selections are back.
+        let restored = try client.getCurrentGroupToneNum()
+        XCTAssertEqual(restored.instNum, prior.instNum)
+        XCTAssertEqual(restored.effectNum, prior.effectNum)
     }
 
     func testGroupWriteFlow() throws {

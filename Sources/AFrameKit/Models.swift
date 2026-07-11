@@ -204,6 +204,16 @@ public struct DSPPatch: Equatable {
     }
 }
 
+public extension DSPPatch {
+    /// A blank ("NAKED") tone half, used when copying an empty slot in the
+    /// tone copier — mirroring the factory editor, where adding a blank/blank
+    /// pair produces a "NAKED" tone set. Placeholder encoding (algo 0, zero
+    /// params) until the naked probe verifies the factory bytes on hardware.
+    static func naked() -> DSPPatch {
+        DSPPatch(algoNum: 0, name: "NAKED", prmNum: 0)
+    }
+}
+
 // MARK: - DSP_PROJECT (Appendix C, 0x7F00 bytes)
 
 public struct DSPProject: Equatable {
@@ -258,9 +268,9 @@ public struct DSPProject: Equatable {
         self.memoryMax = memoryMax
     }
 
-    /// Serializes to the full 0x7F00 image, computing the trailing checksum.
-    /// Checksum algorithm (32-bit sum of preceding bytes) is a working
-    /// hypothesis until verified against a device capture.
+    /// Serializes to the full 0x7F00 image, computing the trailing checksum
+    /// (32-bit sum of preceding bytes). Byte-exact against VER.2.00 device
+    /// captures (testEncodeMatchesRealDeviceCapture).
     public func encode() -> Data {
         var out = Data(capacity: DSPProject.byteSize)
         out.appendLE(id)
@@ -334,6 +344,16 @@ public struct DSPProject: Equatable {
     }
 }
 
+public extension DSPProject {
+    /// Replaces one tone set (the instrument and/or effect patch at `num`).
+    /// A `nil` half leaves the existing patch untouched.
+    mutating func setToneSet(num: Int, inst: DSPPatch?, effect: DSPPatch?) {
+        guard (0..<DSPProject.patchCount).contains(num) else { return }
+        if let inst { instPatch[num] = inst }
+        if let effect { effectPatch[num] = effect }
+    }
+}
+
 // MARK: - Checksums
 
 public enum Checksums {
@@ -345,8 +365,8 @@ public enum Checksums {
         return UInt16(truncatingIfNeeded: s)
     }
 
-    /// 32-bit truncated sum of bytes. Working hypothesis for the DSP_PROJECT
-    /// trailing checksum.
+    /// 32-bit truncated sum of bytes — the DSP_PROJECT trailing checksum
+    /// (verified byte-exact against VER.2.00 device captures).
     public static func byteSum32(_ data: Data) -> UInt32 {
         var s: UInt32 = 0
         for b in data { s &+= UInt32(b) }
