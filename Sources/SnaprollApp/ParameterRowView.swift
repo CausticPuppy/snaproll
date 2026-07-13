@@ -351,7 +351,32 @@ final class ParameterRowView: NSView {
         s.setContentHuggingPriority(.init(1), for: .horizontal)
         s.widthAnchor.constraint(greaterThanOrEqualToConstant: 90).isActive = true
         slider = s
+
+        // Pan sliders snap back to center (C00 = 64) on a double-click. Not
+        // delaying the primary mouse button keeps normal single-click/drag
+        // behavior intact; the double just resets to center afterward.
+        switch descriptor.display {
+        case .pan, .panWithMode:
+            let dbl = NSClickGestureRecognizer(target: self, action: #selector(panDoubleClicked))
+            dbl.numberOfClicksRequired = 2
+            dbl.delaysPrimaryMouseButtonEvents = false
+            s.addGestureRecognizer(dbl)
+        default:
+            break
+        }
         return s
+    }
+
+    /// Double-clicking a pan slider recenters it to C00 (position 64), keeping
+    /// any pressure-pan mode selection intact for `.panWithMode`.
+    @objc private func panDoubleClicked() {
+        slider?.integerValue = 64
+        switch descriptor.display {
+        case .panWithMode:
+            panEmit()
+        default:
+            emit(64)
+        }
     }
 
     // MARK: Value plumbing
