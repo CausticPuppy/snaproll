@@ -57,7 +57,11 @@ func buildMainMenu(menuTarget: AnyObject? = nil, preferencesTarget: AnyObject? =
                                 action: #selector(MainWindowController.openProject(_:)), keyEquivalent: "o")
     let saveAs = fileMenu.addItem(withTitle: "Save Project As…",
                                   action: #selector(MainWindowController.saveProjectAs(_:)), keyEquivalent: "S")
-    for item in [open, saveAs] { item.target = menuTarget }
+    fileMenu.addItem(.separator())
+    let writeGroups = fileMenu.addItem(withTitle: "Write Group Map",
+                                       action: #selector(MainWindowController.writeGroupMap(_:)),
+                                       keyEquivalent: "")
+    for item in [open, saveAs, writeGroups] { item.target = menuTarget }
     fileMenuItem.submenu = fileMenu
 
     let editMenuItem = NSMenuItem()
@@ -76,7 +80,17 @@ func buildMainMenu(menuTarget: AnyObject? = nil, preferencesTarget: AnyObject? =
     let effect = viewMenu.addItem(withTitle: "Effect",
                                   action: #selector(MainWindowController.showEffectView(_:)),
                                   keyEquivalent: "2")
-    for item in [instrument, effect] { item.target = menuTarget }
+    viewMenu.addItem(.separator())
+    let groups = viewMenu.addItem(withTitle: "Group Editor",
+                                  action: #selector(MainWindowController.showGroupEditor(_:)),
+                                  keyEquivalent: "g")
+    let toneCopy = viewMenu.addItem(withTitle: "Tone Copy",
+                                    action: #selector(MainWindowController.showToneCopy(_:)),
+                                    keyEquivalent: "t")
+    let monitor = viewMenu.addItem(withTitle: "Monitor",
+                                   action: #selector(MainWindowController.showMonitor(_:)),
+                                   keyEquivalent: "M")
+    for item in [instrument, effect, groups, toneCopy, monitor] { item.target = menuTarget }
     viewMenuItem.submenu = viewMenu
     return mainMenu
 }

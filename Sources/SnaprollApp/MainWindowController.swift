@@ -44,13 +44,21 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             backing: .buffered, defer: false)
         window.title = "Snaproll"
         window.minSize = NSSize(width: 720, height: 600)
-        window.center()
         self.init(window: window)
         window.delegate = self
         buildContent()
         buildToolbar()
         wireSession()
         refreshPorts()
+        // Size AFTER buildContent: installing contentViewController resizes
+        // the window to the content's (much smaller) autolayout fitting size,
+        // which used to open the window at minimum width with the connection
+        // controls pushed into the toolbar's overflow menu.
+        window.setContentSize(NSSize(width: 1180, height: 760))
+        window.center()
+        // Restore last session's frame if there is one, and keep saving it.
+        window.setFrameUsingName("SnaprollMain")
+        window.setFrameAutosaveName("SnaprollMain")
     }
 
     // MARK: Layout
@@ -192,6 +200,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             let item = NSToolbarItem(itemIdentifier: id)
             item.view = stack
             item.label = "Connection"
+            // Never let the port picker + Connect button fall into the
+            // overflow menu — collapse the icon buttons first.
+            item.visibilityPriority = .high
             return item
         case Self.groupsItemID:
             let button = NSButton(
@@ -423,7 +434,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         session.connect(transport: transport)
     }
 
-    @objc private func showMonitor() {
+    @objc func showMonitor(_ sender: Any?) {
         if monitorWC == nil {
             let wc = MonitorWindowController()
             wc.onClose = { [weak self] in self?.session.stopMonitoring() }
@@ -443,7 +454,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         randomizePopover.show(relativeTo: randomizeButton.bounds, of: randomizeButton, preferredEdge: .maxY)
     }
 
-    @objc private func showGroupEditor() {
+    @objc func showGroupEditor(_ sender: Any?) {
         if groupEditorWC == nil {
             let wc = GroupEditorWindowController()
             wc.onRecall = { [weak self] g, n in self?.session.recallGroupSlot(group: g, num: n) }
@@ -466,7 +477,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
     }
 
-    @objc func showToneCopy() {
+    @objc func showToneCopy(_ sender: Any?) {
         if toneCopyWC == nil {
             let wc = ToneCopyWindowController()
             wc.onFetchDevice = { [weak self] in self?.session.fetchProjectSnapshot() }
@@ -526,10 +537,18 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
     }
 
+    /// Menu twin of the Group Editor's Write button: commits its pending
+    /// group-map edits. Only enabled while that window has edits to write.
+    @objc func writeGroupMap(_ sender: Any?) {
+        groupEditorWC?.performWrite()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(openProject(_:)), #selector(saveProjectAs(_:)):
             return session.isConnected
+        case #selector(writeGroupMap(_:)):
+            return groupEditorWC?.canWrite ?? false
         case #selector(showInstrumentView(_:)):
             menuItem.state = editorVC.domain == .instrument ? .on : .off
             return true

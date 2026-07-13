@@ -74,6 +74,11 @@ final class GroupEditorWindowController: NSWindowController {
         !Self.visibleEqual(edited, device)
     }
 
+    // Menu support: the main window's "Write Group Map" item mirrors the
+    // window's own Write button.
+    var canWrite: Bool { connected && isDirty }
+    func performWrite() { write() }
+
     /// Compares only what the player can reach: MAX and the slots below it.
     private static func visibleEqual(_ a: [GroupList], _ b: [GroupList]) -> Bool {
         guard a.count == b.count else { return false }
