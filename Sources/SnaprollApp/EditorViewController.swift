@@ -25,6 +25,9 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private let nameField = NSTextField(string: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let browseButton = NSButton()
+    // The separator under the fixed header, hidden along with the header
+    // content when no tone is loaded so the empty-state message stands alone.
+    private let headerDivider = NSBox()
     private let columnsStack = NSStackView()
     private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame (or the mock device) to start editing")
 
@@ -92,10 +95,19 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         subtitleLabel.font = .systemFont(ofSize: 12)
         subtitleLabel.textColor = Palette.secondaryText
 
+        // Fixed header: the tone name, Browse button, and subtitle stay pinned
+        // at the top of the editor while the parameter cards scroll beneath
+        // them, so they remain visible and reachable no matter how far down the
+        // player has scrolled.
         let header = NSStackView(views: [nameRow, subtitleLabel])
         header.orientation = .vertical
         header.alignment = .leading
         header.spacing = 2
+        header.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 12, right: 24)
+        header.translatesAutoresizingMaskIntoConstraints = false
+
+        headerDivider.boxType = .separator
+        headerDivider.translatesAutoresizingMaskIntoConstraints = false
 
         columnsStack.orientation = .horizontal
         columnsStack.alignment = .top
@@ -105,11 +117,12 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         emptyLabel.textColor = Palette.tertiaryText
         emptyLabel.font = .systemFont(ofSize: 14)
 
-        let outer = NSStackView(views: [header, emptyLabel, columnsStack])
+        // Scrolling parameter area (the header is no longer part of it).
+        let outer = NSStackView(views: [emptyLabel, columnsStack])
         outer.orientation = .vertical
         outer.alignment = .leading
         outer.spacing = 16
-        outer.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 24, right: 24)
+        outer.edgeInsets = NSEdgeInsets(top: 16, left: 24, bottom: 24, right: 24)
         outer.translatesAutoresizingMaskIntoConstraints = false
         content.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(outer)
@@ -120,8 +133,27 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         scroll.drawsBackground = true
         scroll.backgroundColor = .windowBackgroundColor
         scroll.automaticallyAdjustsContentInsets = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.addSubview(header)
+        container.addSubview(headerDivider)
+        container.addSubview(scroll)
 
         NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: container.topAnchor),
+            header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            headerDivider.topAnchor.constraint(equalTo: header.bottomAnchor),
+            headerDivider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            headerDivider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            scroll.topAnchor.constraint(equalTo: headerDivider.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
             outer.topAnchor.constraint(equalTo: content.topAnchor),
             outer.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             outer.trailingAnchor.constraint(equalTo: content.trailingAnchor),
@@ -132,13 +164,13 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             content.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             content.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             columnsStack.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
-            // Give the name row the full content width; the name field expands
+            // Give the name row the full header width; the name field expands
             // within it (a leading-aligned editable field otherwise takes only
             // its intrinsic width and clips the last glyph on long names).
-            nameRow.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
+            nameRow.widthAnchor.constraint(equalTo: header.widthAnchor, constant: -48),
         ])
 
-        view = scroll
+        view = container
         rebuild()
     }
 
@@ -341,11 +373,15 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             subtitleLabel.stringValue = ""
             nameField.isHidden = true
             browseButton.isHidden = true
+            subtitleLabel.isHidden = true
+            headerDivider.isHidden = true
             emptyLabel.isHidden = false
             return
         }
         nameField.isHidden = false
         browseButton.isHidden = false
+        subtitleLabel.isHidden = false
+        headerDivider.isHidden = false
         browseButton.toolTip = domain == .instrument ? "Browse instruments" : "Browse effects"
         emptyLabel.isHidden = true
         nameField.stringValue = tone.name
