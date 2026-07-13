@@ -1,6 +1,6 @@
 aframe-capture session 20260701-213259
 target: /dev/cu.usbserial-0001
-output: /Users/jason/Documents/ATV aFrame/captures/20260701-213259
+output: captures/20260701-213259
 
 == GetVersion (aFG0)
   version: VER.2.00-BLD.001 2019/02/28 17:58:50

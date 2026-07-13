@@ -1,16 +1,37 @@
 #!/bin/sh
-# Wraps the SwiftPM-built binary in a minimal .app bundle at .build/Snaproll.app
+# Builds a release Snaproll.app bundle at .build/Snaproll.app and zips it for
+# distribution at .build/Snaproll.zip.
+#
+# Optional code signing + notarization (to avoid the "unidentified developer"
+# Gatekeeper warning on downloaded builds). Both require an Apple Developer
+# Program membership. Leave the env vars unset for a plain unsigned build.
+#
+#   DEVELOPER_ID   Developer ID Application identity, e.g.
+#                  "Developer ID Application: Jason Bruce (TEAMID1234)".
+#                  When set, the .app is signed with the hardened runtime.
+#   NOTARY_PROFILE notarytool keychain profile name (set up once with
+#                  `xcrun notarytool store-credentials`). When set (and the
+#                  app is signed), the zip is submitted for notarization and
+#                  the ticket is stapled to the .app.
+#   UNIVERSAL=1    Build a universal (arm64 + x86_64) binary instead of native.
 set -e
 cd "$(dirname "$0")/.."
-swift build
+
+BUILD_FLAGS="-c release"
+if [ "$UNIVERSAL" = "1" ]; then
+    BUILD_FLAGS="$BUILD_FLAGS --arch arm64 --arch x86_64"
+fi
+swift build $BUILD_FLAGS
+BIN_DIR="$(swift build $BUILD_FLAGS --show-bin-path)"
+
 APP=".build/Snaproll.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/debug/Snaproll "$APP/Contents/MacOS/Snaproll"
+cp "$BIN_DIR/Snaproll" "$APP/Contents/MacOS/Snaproll"
 
 # Bundle the SwiftPM resources (so Bundle.module resolves inside the .app too).
-if [ -d ".build/debug/Snaproll_SnaprollApp.bundle" ]; then
-    cp -R ".build/debug/Snaproll_SnaprollApp.bundle" "$APP/Contents/Resources/"
+if [ -d "$BIN_DIR/Snaproll_SnaprollApp.bundle" ]; then
+    cp -R "$BIN_DIR/Snaproll_SnaprollApp.bundle" "$APP/Contents/Resources/"
 fi
 
 # Build AppIcon.icns from the source logo for the Finder/Dock icon.
@@ -49,3 +70,36 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 echo "Built $APP"
+
+# Code signing (optional) — hardened runtime is required for notarization.
+if [ -n "$DEVELOPER_ID" ]; then
+    codesign --force --deep --options runtime --timestamp \
+        --sign "$DEVELOPER_ID" "$APP"
+    codesign --verify --strict --verbose=2 "$APP"
+    echo "Signed $APP with: $DEVELOPER_ID"
+else
+    echo "Skipping code signing (DEVELOPER_ID not set) — build will trip Gatekeeper."
+fi
+
+# Zip for distribution (ditto preserves the bundle + any signature).
+ZIP=".build/Snaproll.zip"
+rm -f "$ZIP"
+/usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
+echo "Zipped $ZIP"
+
+# Notarization (optional) — requires a signed app and a notarytool profile.
+if [ -n "$NOTARY_PROFILE" ]; then
+    if [ -z "$DEVELOPER_ID" ]; then
+        echo "NOTARY_PROFILE set but app is unsigned; skipping notarization." >&2
+    else
+        echo "Submitting to Apple notary service (this can take a few minutes)..."
+        xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun stapler staple "$APP"
+        # Re-zip so the distributed archive carries the stapled ticket.
+        rm -f "$ZIP"
+        /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
+        echo "Notarized + stapled; re-zipped $ZIP"
+    fi
+else
+    echo "Skipping notarization (NOTARY_PROFILE not set)."
+fi

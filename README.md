@@ -6,6 +6,38 @@ firmware 1.10+). See
 [Docs/GAP_ANALYSIS.md](Docs/GAP_ANALYSIS.md) for the API-vs-editor feature analysis that
 drives the plan.
 
+## Download / Install
+
+Grab the latest `Snaproll.zip` from the
+[Releases](../../releases) page, unzip it, and drag `Snaproll.app` to
+`/Applications`. Requires macOS 13 (Ventura) or later on Apple Silicon.
+
+If macOS reports that the app "cannot be opened because the developer cannot
+be verified," it just means this build isn't notarized by Apple. To open it
+anyway, **right-click (or Control-click) `Snaproll.app` → Open**, then confirm
+in the dialog. You only need to do this once. (Equivalently, from Terminal:
+`xattr -dr com.apple.quarantine /Applications/Snaproll.app`.)
+
+## Building a release
+
+`Scripts/make-app.sh` produces a release `.build/Snaproll.app` and a
+`.build/Snaproll.zip` ready to attach to a GitHub Release:
+
+```sh
+sh Scripts/make-app.sh              # unsigned build
+UNIVERSAL=1 sh Scripts/make-app.sh  # universal arm64 + x86_64 binary
+```
+
+To ship a build that opens with no Gatekeeper warning you need an Apple
+Developer Program membership and a "Developer ID Application" certificate,
+then sign + notarize by setting two env vars (see the script header):
+
+```sh
+DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="your-notarytool-profile" \
+sh Scripts/make-app.sh
+```
+
 ## Layout
 
 - `Sources/AFrameKit` — protocol library: serial transport, `AFrameClient`
