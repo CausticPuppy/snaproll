@@ -34,7 +34,11 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private let saveButton = NSButton()
     private let headerDivider = NSBox()
     private let columnsStack = NSStackView()
+    #if DEBUG
     private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame (or the mock device) to start editing")
+    #else
+    private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame to start editing")
+    #endif
 
     private final class FlippedView: NSView {
         override var isFlipped: Bool { true }

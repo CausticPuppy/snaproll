@@ -224,18 +224,46 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     @objc private func refreshPorts() {
         let previous = portPopup.titleOfSelectedItem
         portPopup.removeAllItems()
-        portPopup.addItem(withTitle: "Mock Device")
         let ports = SerialPortDiscovery.candidatePorts()
             .filter { !$0.contains("Bluetooth") && !$0.contains("debug") }
+        #if DEBUG
+        // The mock device is a development-only convenience; production builds
+        // never offer it.
+        portPopup.addItem(withTitle: "Mock Device")
         if !ports.isEmpty {
             portPopup.menu?.addItem(.separator())
             portPopup.addItems(withTitles: ports)
         }
+        #else
+        if ports.isEmpty {
+            portPopup.addItem(withTitle: "No device detected")
+            portPopup.lastItem?.isEnabled = false
+        } else {
+            portPopup.addItems(withTitles: ports)
+        }
+        #endif
         if let previous, portPopup.itemTitles.contains(previous) {
             portPopup.selectItem(withTitle: previous)
         } else if let hardware = ports.first {
             portPopup.selectItem(withTitle: hardware)
         }
+        if !session.isConnected {
+            connectButton.isEnabled = hasConnectableDevice
+            if !hasConnectableDevice {
+                statusLabel.stringValue = "No device detected"
+            }
+        }
+    }
+
+    /// Whether the currently selected port entry is something we can connect to
+    /// (a real serial port, or — in debug builds — the mock device).
+    private var hasConnectableDevice: Bool {
+        guard let title = portPopup.titleOfSelectedItem else { return false }
+        #if DEBUG
+        return title == "Mock Device" || title.hasPrefix("/dev/")
+        #else
+        return title.hasPrefix("/dev/")
+        #endif
     }
 
     // MARK: Session wiring
@@ -381,14 +409,24 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
         refreshPorts()
         let transport: AFrameTransport
-        if portPopup.indexOfSelectedItem == 0 {
+        let title = portPopup.titleOfSelectedItem
+        #if DEBUG
+        if title == "Mock Device" {
             transport = MockAFrame()
-        } else if let title = portPopup.titleOfSelectedItem, title.hasPrefix("/dev/") {
+        } else if let title, title.hasPrefix("/dev/") {
             transport = POSIXSerialPort(path: title)
         } else {
             statusLabel.stringValue = "Select a port or the mock device"
             return
         }
+        #else
+        if let title, title.hasPrefix("/dev/") {
+            transport = POSIXSerialPort(path: title)
+        } else {
+            statusLabel.stringValue = "No device detected"
+            return
+        }
+        #endif
         connectButton.isEnabled = false
         statusLabel.stringValue = "Connecting…"
         session.connect(transport: transport)

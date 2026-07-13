@@ -1,6 +1,6 @@
 # Snaproll (Apple Silicon)
 
-Snaproll — an editor for the ATV aFrame. A native Swift/AppKit replacement for
+Snaproll: an editor for the ATV aFrame. A native Swift/AppKit replacement for
 ATV's Intel-only aFrameEdit, built against the aFrame serial API (spec Ver 1.10,
 firmware 1.10+). See
 [Docs/GAP_ANALYSIS.md](Docs/GAP_ANALYSIS.md) for the API-vs-editor feature analysis that
