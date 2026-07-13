@@ -631,6 +631,25 @@ final class ClientAgainstMockTests: XCTestCase {
         XCTAssertEqual(data.values[3], 99)
     }
 
+    func testCurrentGroupToneTracksLiveSelection() throws {
+        // aFGA's inst/effect fields follow aFE2 tone changes rather than the
+        // group slot's stored mapping (verified on VER.2.00 hardware,
+        // captures/20260712-202522/group_map_probe.txt).
+        try client.setExtMode(true)
+        try client.extSelectGroup(group: 0, num: 1)
+        let atSlot = try client.getCurrentGroupToneNum()
+        let other = (atSlot.instNum + 1) % DSPProject.patchCount
+        try client.extChangeToneNum(.instrument, num: other)
+        let after = try client.getCurrentGroupToneNum()
+        XCTAssertEqual(after.instNum, other, "aFGA must track the live selection")
+        XCTAssertEqual(after.effectNum, atSlot.effectNum)
+        XCTAssertEqual(after.group, atSlot.group, "position is unaffected by aFE2")
+        XCTAssertEqual(after.number, atSlot.number)
+        // aFGB prints the selection 1-based, like real firmware.
+        let names = try client.getCurrentToneName()
+        XCTAssertTrue(names.inst.hasPrefix(String(format: "I%02d:", other + 1)), names.inst)
+    }
+
     func testGroupMapDiff() throws {
         let base = [
             GroupList(max: 3, slots: [GroupSlot(inst: 0, effect: 0),

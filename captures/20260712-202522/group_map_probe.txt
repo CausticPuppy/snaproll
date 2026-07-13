@@ -1,0 +1,11 @@
+prior aFGA: group=0 num=1 max=10 inst=1 effect=1
+prior aFGB: I02:GrowlingPot | E02:GrowlPotRev
+aFE2 instrument -> 2 (no group write)
+aFGA now: inst=2 effect=1 | aFGB: I03:3D MadTemple
+VERDICT: aFGA tracks the LIVE selection (moves with aFE2) — mock differs
+target group 4 slot 0: orig=(40,40) max=10; writing (43,45)
+readback slot 0=(43,45) max=10 slot1=(41,41)
+aFGA after aFE1: group=4 num=0
+VERDICT: aFE2+aFE2+aFE1 writes an arbitrary mapping row (neighbors/MAX intact)
+restored slot 0=(40,40) — OK
+restored position 0-1 and tone selections

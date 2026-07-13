@@ -1,0 +1,4 @@
+downloaded project “aFrame Initial Project” (32512 bytes decoded)
+local re-encode is byte-exact (32512 bytes) — pushing back via aFE9
+push accepted
+VERDICT: device round-trips the Snaproll-encoded image byte-exact

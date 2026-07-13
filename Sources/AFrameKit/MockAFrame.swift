@@ -168,12 +168,16 @@ public final class MockAFrame: AFrameTransport {
             meterPhase += 1
             respond("\((meterPhase * 2) % 16),\((meterPhase * 3) % 16)")
         case "aFGA":
+            // inst/effect are the LIVE tone selections, not the group slot's
+            // stored mapping — they move with aFE2 (verified on VER.2.00
+            // hardware, captures/20260712-202522/group_map_probe.txt).
             let g = Int(project.memoryGrp), n = Int(project.memoryNum)
-            let slot = project.memory[g][n]
-            respond("\(g),\(n),\(project.memoryMax[g]),\(slot.inst),\(slot.effect)")
+            respond("\(g),\(n),\(project.memoryMax[g]),\(project.instPatchSel),\(project.effectPatchSel)")
         case "aFGB":
-            respond(String(format: "I%02d:%@", project.instPatchSel, instPatchEdit.name))
-            respond(String(format: "E%02d:%@", project.effectPatchSel, effectPatchEdit.name))
+            // Real firmware prints the tone number 1-based ("I02:GrowlingPot"
+            // for selection 1).
+            respond(String(format: "I%02d:%@", project.instPatchSel + 1, instPatchEdit.name))
+            respond(String(format: "E%02d:%@", project.effectPatchSel + 1, effectPatchEdit.name))
         case "aFGC":
             let patch = (intArg(args, 0) ?? 0) == 0 ? instPatchEdit : effectPatchEdit
             respondToneBlock(patch)

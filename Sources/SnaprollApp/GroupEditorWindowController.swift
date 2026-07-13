@@ -14,9 +14,9 @@ final class GroupEditorWindowController: NSWindowController {
     var onWrite: ((_ lists: [GroupList]) -> Void)?
     var onReload: (() -> Void)?
     /// Supplies the tones currently loaded in the main editor — what "Store"
-    /// writes into the selected slot. (Not derived from aFGA: the mock returns
-    /// the slot's mapping there rather than the live selections, and the real
-    /// device's behavior after aFE2 is unverified.)
+    /// writes into the selected slot. Sourced from the editor rather than
+    /// aFGA so Store always matches what the tone browser is showing, even
+    /// if a `.groups` refresh is in flight.
     var currentSelection: (() -> (inst: Int, effect: Int)?)?
 
     // Offline model: `device` mirrors the last `.groups` payload; `edited` is

@@ -24,6 +24,9 @@ struct Options {
     var tuneProbe = false
     var scProbe = false
     var panProbe = false
+    var groupMapProbe = false
+    var nakedProbe = false
+    var encodeProof = false
 }
 
 func parseOptions() -> Options {
@@ -40,6 +43,9 @@ func parseOptions() -> Options {
         case "--tune-probe": opts.tuneProbe = true
         case "--sc-probe": opts.scProbe = true
         case "--pan-probe": opts.panProbe = true
+        case "--group-map-probe": opts.groupMapProbe = true
+        case "--naked-probe": opts.nakedProbe = true
+        case "--encode-proof": opts.encodeProof = true
         default:
             FileHandle.standardError.write(Data("Unknown option: \(arg)\n".utf8))
             exit(2)
@@ -471,7 +477,192 @@ func runPanProbe() throws {
     save("pan_probe.txt", report.joined(separator: "\n") + "\n")
 }
 
-if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe || opts.panProbe {
+// --- Group map probe ------------------------------------------------------
+//
+// Confirms the two protocol facts Snaproll's group-map Write relies on:
+//
+// 1. aFGA semantics: does the inst/effect field track the LIVE tone selection
+//    (i.e. it moves when aFE2 changes the tone number) or the current group
+//    slot's stored mapping? The mock returns the slot contents; the spec is
+//    ambiguous. Cross-checked against aFGB, which names the live selection.
+// 2. The aFE2+aFE2+aFE1 sequence writes an ARBITRARY mapping row: select two
+//    tone numbers, store them into a slot, and the slot must hold exactly
+//    that pair with neighbors and MAX untouched.
+//
+// Writes one group slot and restores it afterward; the tone selections and
+// group position are restored too.
+
+func runGroupMapProbe() throws {
+    var report = [String]()
+    func note(_ s: String) {
+        report.append(s)
+        log("  \(s)")
+    }
+
+    let prior = try client.getCurrentGroupToneNum()
+    note("prior aFGA: group=\(prior.group) num=\(prior.number) max=\(prior.max) inst=\(prior.instNum) effect=\(prior.effectNum)")
+    let priorNames = try client.getCurrentToneName()
+    note("prior aFGB: \(priorNames.inst) | \(priorNames.effect)")
+
+    // -- 1: aFGA semantics under aFE2 --------------------------------------
+    let testInst = (prior.instNum + 1) % DSPProject.patchCount
+    note("aFE2 instrument -> \(testInst) (no group write)")
+    try client.extChangeToneNum(.instrument, num: testInst)
+    let after2 = try client.getCurrentGroupToneNum()
+    let names2 = try client.getCurrentToneName()
+    note("aFGA now: inst=\(after2.instNum) effect=\(after2.effectNum) | aFGB: \(names2.inst)")
+    if after2.instNum == testInst {
+        note("VERDICT: aFGA tracks the LIVE selection (moves with aFE2) — mock differs")
+    } else if after2.instNum == prior.instNum {
+        note("VERDICT: aFGA returns the group slot's stored mapping — matches mock")
+    } else {
+        note("VERDICT: unexpected value; inspect manually")
+    }
+    try client.extChangeToneNum(.instrument, num: prior.instNum)
+
+    // -- 2: arbitrary mapping-row write via aFE2+aFE2+aFE1 ------------------
+    // Use a slot in a different group from the current position.
+    let g = (prior.group + 4) % DSPProject.memoryGroups
+    let before = try client.getProjectGroupList(group: g)
+    let orig = before.slots[0]
+    let neighbor = before.slots[1]
+    let wantInst = (orig.inst + 3) % DSPProject.patchCount
+    let wantFx = (orig.effect + 5) % DSPProject.patchCount
+    note("target group \(g) slot 0: orig=(\(orig.inst),\(orig.effect)) max=\(before.max); writing (\(wantInst),\(wantFx))")
+
+    try client.extChangeToneNum(.instrument, num: wantInst)
+    try client.extChangeToneNum(.effect, num: wantFx)
+    try client.extWriteGroup(group: g, num: 0, max: before.max)
+
+    let after = try client.getProjectGroupList(group: g)
+    let pos = try client.getCurrentGroupToneNum()
+    note("readback slot 0=(\(after.slots[0].inst),\(after.slots[0].effect)) max=\(after.max) slot1=(\(after.slots[1].inst),\(after.slots[1].effect))")
+    note("aFGA after aFE1: group=\(pos.group) num=\(pos.number)")
+    let slotOK = after.slots[0] == GroupSlot(inst: wantInst, effect: wantFx)
+    let sideOK = after.max == before.max && after.slots[1] == neighbor
+    note(slotOK && sideOK
+         ? "VERDICT: aFE2+aFE2+aFE1 writes an arbitrary mapping row (neighbors/MAX intact)"
+         : "VERDICT: MISMATCH — slotOK=\(slotOK) sideOK=\(sideOK)")
+
+    // -- restore -------------------------------------------------------------
+    try client.extChangeToneNum(.instrument, num: orig.inst)
+    try client.extChangeToneNum(.effect, num: orig.effect)
+    try client.extWriteGroup(group: g, num: 0, max: before.max)
+    let restored = try client.getProjectGroupList(group: g)
+    note("restored slot 0=(\(restored.slots[0].inst),\(restored.slots[0].effect)) — \(restored.slots[0] == orig ? "OK" : "FAILED")")
+    try client.extSelectGroup(group: prior.group, num: prior.number)
+    try client.extChangeToneNum(.instrument, num: prior.instNum)
+    try client.extChangeToneNum(.effect, num: prior.effectNum)
+    note("restored position \(prior.group)-\(prior.number) and tone selections")
+
+    save("group_map_probe.txt", report.joined(separator: "\n") + "\n")
+}
+
+// --- Naked probe ------------------------------------------------------------
+//
+// What is a blank ("NAKED") tone set on real firmware? Uploads a minimal
+// prm_num=0 payload (Snaproll's DSPPatch.naked() placeholder) to the
+// instrument EDIT BUFFER only, reads back what the device made of it (BIN,
+// TXT, and the LCD), then restores the original edit buffer byte-for-byte.
+// The project is never written.
+
+func runNakedProbe() throws {
+    var report = [String]()
+    func note(_ s: String) {
+        report.append(s)
+        log("  \(s)")
+    }
+
+    let origPayload = try client.extGetEditBuffBinary(.instrument)
+    let origPatch = try DSPPatch.decodeTransfer(origPayload)
+    note("original edit buffer: algo=\(origPatch.algoNum) name=\(origPatch.name) prm_num=\(origPatch.prmNum) (\(origPayload.count) bytes)")
+    save("naked_probe_original.bin", origPayload)
+
+    let naked = DSPPatch.naked()
+    let payload = naked.encodeTransfer()
+    note("uploading naked payload: algo=\(naked.algoNum) name=\(naked.name) prm_num=0 (\(payload.count) bytes)")
+    do {
+        try client.extSetEditBuffBinary(.instrument, payload: payload)
+        note("aFE7 accepted the prm_num=0 payload")
+        let back = try client.extGetEditBuffBinary(.instrument)
+        let backPatch = try DSPPatch.decodeTransfer(back)
+        note("readback BIN: algo=\(backPatch.algoNum) name=\(backPatch.name) prm_num=\(backPatch.prmNum) (\(back.count) bytes)")
+        save("naked_probe_readback.bin", back)
+        do {
+            let (tone, sum) = try client.extGetEditBuffText(.instrument)
+            note("readback TXT: algo=\(tone.algoNum) name=\(tone.name) values=\(tone.values.count) checksum=\(sum)")
+        } catch {
+            note("readback TXT failed: \(error.localizedDescription)")
+            client.drain()
+        }
+        usleep(150_000)
+        let lcd1 = try client.getLCD(addr: 0, count: 16)
+        let lcd2 = try client.getLCD(addr: 32, count: 16)
+        note("LCD: [\(lcd1)] [\(lcd2)]")
+    } catch AFrameError.commandRejected {
+        note("aFE7 REJECTED the prm_num=0 payload — a naked set needs a different encoding")
+        client.drain()
+    }
+
+    try client.extSetEditBuffBinary(.instrument, payload: origPayload)
+    let verify = try client.extGetEditBuffBinary(.instrument)
+    note("edit buffer restored — \(verify == origPayload ? "byte-exact" : "MISMATCH (recall the slot to recover)")")
+
+    save("naked_probe.txt", report.joined(separator: "\n") + "\n")
+}
+
+// --- Encode proof -------------------------------------------------------------
+//
+// The ultimate DSPProject.encode() check on hardware: download the project,
+// re-encode it locally, and only if the bytes are IDENTICAL to what the device
+// sent, push that image back (aFE9) and download again to confirm the device
+// round-trips it unchanged. Pushing bytes identical to the current project
+// leaves the device state untouched.
+
+func runEncodeProof() throws {
+    var report = [String]()
+    func note(_ s: String) {
+        report.append(s)
+        log("  \(s)")
+    }
+
+    let raw1 = try client.extGetProjectRaw()
+    let image1 = try AFrameLZ.decode(framed: raw1)
+    let project = try DSPProject.decode(image1)
+    note("downloaded project “\(project.name)” (\(image1.count) bytes decoded)")
+    save("encode_proof_device.bin", image1)
+
+    let reencoded = project.encode()
+    guard reencoded == image1 else {
+        note("LOCAL MISMATCH: encode() differs from device image — NOT pushing")
+        for i in 0..<min(image1.count, reencoded.count) where image1[i] != reencoded[i] {
+            note(String(format: "first difference at offset 0x%04X: device=%02X ours=%02X",
+                        i, image1[i], reencoded[i]))
+            break
+        }
+        save("encode_proof_reencoded.bin", reencoded)
+        save("encode_proof.txt", report.joined(separator: "\n") + "\n")
+        return
+    }
+    note("local re-encode is byte-exact (\(reencoded.count) bytes) — pushing back via aFE9")
+
+    try client.extSetProjectRaw(AFrameLZ.encode(framed: reencoded))
+    note("push accepted")
+
+    let raw2 = try client.extGetProjectRaw()
+    let image2 = try AFrameLZ.decode(framed: raw2)
+    if image2 == image1 {
+        note("VERDICT: device round-trips the Snaproll-encoded image byte-exact")
+    } else {
+        let diffs = zip(image1, image2).filter { $0 != $1 }.count
+        note("VERDICT: re-download differs in \(diffs) byte(s) — inspect encode_proof_after.bin")
+        save("encode_proof_after.bin", image2)
+    }
+    save("encode_proof.txt", report.joined(separator: "\n") + "\n")
+}
+
+if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe || opts.panProbe
+    || opts.groupMapProbe || opts.nakedProbe || opts.encodeProof {
     step("GetVersion") {
         log("  \(try client.getVersion())")
     }
@@ -487,6 +678,9 @@ if opts.probe || opts.sweep || opts.sweepQuick || opts.tuneProbe || opts.scProbe
         if opts.tuneProbe { try runTuneProbe() }
         if opts.scProbe { try runSCProbe() }
         if opts.panProbe { try runPanProbe() }
+        if opts.groupMapProbe { try runGroupMapProbe() }
+        if opts.nakedProbe { try runNakedProbe() }
+        if opts.encodeProof { try runEncodeProof() }
     } catch {
         log("PROBE FAILED: \(error.localizedDescription)")
         client.drain()
