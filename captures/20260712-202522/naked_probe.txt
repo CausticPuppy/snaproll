@@ -1,0 +1,7 @@
+original edit buffer: algo=0 name=GrowlingPot prm_num=79 (184 bytes)
+uploading naked payload: algo=0 name=NAKED prm_num=0 (26 bytes)
+aFE7 accepted the prm_num=0 payload
+readback BIN: algo=0 name=NAKED prm_num=0 (26 bytes)
+readback TXT: algo=0 name=NAKED values=0 checksum=355
+LCD: [?EXT EDIT MODE ?] [ Locked Int Sw  ]
+edit buffer restored — byte-exact

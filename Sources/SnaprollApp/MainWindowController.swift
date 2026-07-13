@@ -7,6 +7,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private let editorVC = EditorViewController()
     private var monitorWC: MonitorWindowController?
     private var groupEditorWC: GroupEditorWindowController?
+    private var toneCopyWC: ToneCopyWindowController?
 
     // Latest project tone-name lists, relayed to the group editor to resolve
     // slot patch numbers into names.
@@ -43,13 +44,21 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             backing: .buffered, defer: false)
         window.title = "Snaproll"
         window.minSize = NSSize(width: 720, height: 600)
-        window.center()
         self.init(window: window)
         window.delegate = self
         buildContent()
         buildToolbar()
         wireSession()
         refreshPorts()
+        // Size AFTER buildContent: installing contentViewController resizes
+        // the window to the content's (much smaller) autolayout fitting size,
+        // which used to open the window at minimum width with the connection
+        // controls pushed into the toolbar's overflow menu.
+        window.setContentSize(NSSize(width: 1180, height: 760))
+        window.center()
+        // Restore last session's frame if there is one, and keep saving it.
+        window.setFrameUsingName("SnaprollMain")
+        window.setFrameAutosaveName("SnaprollMain")
     }
 
     // MARK: Layout
@@ -162,12 +171,13 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
 
     private static let connectionItemID = NSToolbarItem.Identifier("connection")
     private static let groupsItemID = NSToolbarItem.Identifier("groups")
+    private static let toneCopyItemID = NSToolbarItem.Identifier("toneCopy")
     private static let monitorItemID = NSToolbarItem.Identifier("monitor")
     private static let randomizeItemID = NSToolbarItem.Identifier("randomize")
     private static let saveItemID = NSToolbarItem.Identifier("save")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.groupsItemID, Self.monitorItemID, Self.randomizeItemID,
+        [Self.groupsItemID, Self.toneCopyItemID, Self.monitorItemID, Self.randomizeItemID,
          .flexibleSpace, Self.connectionItemID, Self.saveItemID]
     }
 
@@ -190,6 +200,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             let item = NSToolbarItem(itemIdentifier: id)
             item.view = stack
             item.label = "Connection"
+            // Never let the port picker + Connect button fall into the
+            // overflow menu — collapse the icon buttons first.
+            item.visibilityPriority = .high
             return item
         case Self.groupsItemID:
             let button = NSButton(
@@ -201,6 +214,18 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             item.view = button
             item.label = "Groups"
             item.toolTip = "Open the group map editor"
+            return item
+        case Self.toneCopyItemID:
+            let button = NSButton(
+                image: NSImage(systemSymbolName: "arrow.left.arrow.right.square",
+                               accessibilityDescription: "Tone Copy")!,
+                target: self, action: #selector(showToneCopy))
+            button.bezelStyle = .texturedRounded
+            button.imagePosition = .imageOnly
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.view = button
+            item.label = "Tone Copy"
+            item.toolTip = "Copy tone sets between the aFrame and project files"
             return item
         case Self.monitorItemID:
             let button = NSButton(
@@ -313,6 +338,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 if self.groupEditorWC?.window?.isVisible == true {
                     self.session.loadGroups()
                 }
+                self.toneCopyWC?.setConnected(true)
             case .disconnected:
                 self.statusDot.textColor = .systemRed
                 self.statusLabel.stringValue = "Not connected"
@@ -325,6 +351,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.editorVC.clear()
                 self.monitorWC?.setIdle("Not connected")
                 self.groupEditorWC?.setIdle()
+                self.toneCopyWC?.setConnected(false)
                 self.groupNav.setIdle()
             case .names(let sel, let list):
                 self.editorVC.setToneNames(list, for: sel)
@@ -337,6 +364,16 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             case .groups(let list, let current):
                 self.groupEditorWC?.update(lists: list, current: current)
                 self.groupNav.update(from: current)
+            case .groupsWritten(let changed):
+                self.statusLabel.stringValue = changed == 0
+                    ? "Group map already matches — nothing to write"
+                    : "Wrote \(changed) group slot\(changed == 1 ? "" : "s") — persists at normal power-off"
+            case .projectSnapshot(let project):
+                self.toneCopyWC?.deliverSnapshot(project)
+            case .toneSetsWritten(let count):
+                self.toneCopyWC?.deviceWriteFinished()
+                self.statusLabel.stringValue =
+                    "Wrote \(count) tone set\(count == 1 ? "" : "s") — persists at normal power-off"
             case .projectSaved(let name, let url):
                 let label = name.isEmpty ? url.lastPathComponent : "“\(name)” to \(url.lastPathComponent)"
                 self.statusLabel.stringValue = "Saved project \(label)"
@@ -397,7 +434,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         session.connect(transport: transport)
     }
 
-    @objc private func showMonitor() {
+    @objc func showMonitor(_ sender: Any?) {
         if monitorWC == nil {
             let wc = MonitorWindowController()
             wc.onClose = { [weak self] in self?.session.stopMonitoring() }
@@ -417,13 +454,18 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         randomizePopover.show(relativeTo: randomizeButton.bounds, of: randomizeButton, preferredEdge: .maxY)
     }
 
-    @objc private func showGroupEditor() {
+    @objc func showGroupEditor(_ sender: Any?) {
         if groupEditorWC == nil {
             let wc = GroupEditorWindowController()
             wc.onRecall = { [weak self] g, n in self?.session.recallGroupSlot(group: g, num: n) }
-            wc.onStore = { [weak self] g, n, m in self?.session.storeCurrentToGroup(group: g, num: n, max: m) }
-            wc.onSetMax = { [weak self] g, m in self?.session.setGroupMax(group: g, max: m) }
+            wc.onWrite = { [weak self] lists in self?.session.writeGroupMap(lists) }
             wc.onReload = { [weak self] in self?.session.loadGroups() }
+            wc.currentSelection = { [weak self] in
+                guard let self,
+                      let inst = self.editorVC.currentSlot(for: .instrument),
+                      let effect = self.editorVC.currentSlot(for: .effect) else { return nil }
+                return (inst, effect)
+            }
             groupEditorWC = wc
         }
         groupEditorWC?.setNames(inst: instNames, effect: effectNames)
@@ -433,6 +475,19 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         } else {
             groupEditorWC?.setIdle()
         }
+    }
+
+    @objc func showToneCopy(_ sender: Any?) {
+        if toneCopyWC == nil {
+            let wc = ToneCopyWindowController()
+            wc.onFetchDevice = { [weak self] in self?.session.fetchProjectSnapshot() }
+            wc.onWriteToneSets = { [weak self] changes in
+                self?.session.writeToneSets(changes.map { ($0.num, $0.inst, $0.effect) })
+            }
+            toneCopyWC = wc
+        }
+        toneCopyWC?.setConnected(session.isConnected)
+        toneCopyWC?.showWindow(nil)
     }
 
     // MARK: Project file load / save
@@ -482,10 +537,18 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
     }
 
+    /// Menu twin of the Group Editor's Write button: commits its pending
+    /// group-map edits. Only enabled while that window has edits to write.
+    @objc func writeGroupMap(_ sender: Any?) {
+        groupEditorWC?.performWrite()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(openProject(_:)), #selector(saveProjectAs(_:)):
             return session.isConnected
+        case #selector(writeGroupMap(_:)):
+            return groupEditorWC?.canWrite ?? false
         case #selector(showInstrumentView(_:)):
             menuItem.state = editorVC.domain == .instrument ? .on : .off
             return true

@@ -15,6 +15,9 @@ final class EditorSession {
         case projectSaved(name: String, url: URL)
         case projectLoaded(name: String, backup: URL?)
         case groups(list: [GroupList], current: GroupToneInfo)
+        case groupsWritten(changedSlots: Int)
+        case projectSnapshot(DSPProject)
+        case toneSetsWritten(count: Int)
         case status(String)
         case error(String)
     }
@@ -221,6 +224,66 @@ final class EditorSession {
         }
     }
 
+    /// Downloads and decodes the device's whole project (one aFE8 bulk read,
+    /// checksum-verified), emitting `.projectSnapshot` — the tone copier's
+    /// "From/To = aFrame" source.
+    func fetchProjectSnapshot() {
+        queue.async {
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame to read its tones"))
+                return
+            }
+            do {
+                self.flushNow()
+                let project = try client.extGetProject()
+                self.emit(.projectSnapshot(project))
+            } catch {
+                self.emit(.error("Project read failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    /// Uploads tone sets to the device: each non-nil half goes through the
+    /// edit buffer (aFE7 BIN + aFE5), after backing up the whole project.
+    /// The prior tone selections and edit buffers are restored afterward, and
+    /// both name lists refresh so the tone browsers see the copies.
+    func writeToneSets(_ sets: [(num: Int, inst: DSPPatch?, effect: DSPPatch?)]) {
+        queue.async {
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame before writing tones"))
+                return
+            }
+            do {
+                self.flushNow()
+                let prior = try client.getCurrentGroupToneNum()
+                _ = try self.writeAutoBackup(client: client)
+                var written = 0
+                for set in sets {
+                    if let inst = set.inst {
+                        try client.extSetEditBuff(.instrument, patch: inst)
+                        try client.extWriteEditBuffToProject(.instrument, num: set.num)
+                    }
+                    if let effect = set.effect {
+                        try client.extSetEditBuff(.effect, patch: effect)
+                        try client.extWriteEditBuffToProject(.effect, num: set.num)
+                    }
+                    if set.inst != nil || set.effect != nil { written += 1 }
+                }
+                // Restore the tone selections the player had (this also
+                // reloads both edit buffers from the untouched slots).
+                try client.extChangeToneNum(.instrument, num: prior.instNum)
+                try client.extChangeToneNum(.effect, num: prior.effectNum)
+                self.emit(.names(.instrument, try client.getProjectToneNameList(.instrument)))
+                self.emit(.names(.effect, try client.getProjectToneNameList(.effect)))
+                try self.loadTone(.instrument, num: prior.instNum)
+                try self.loadTone(.effect, num: prior.effectNum)
+                self.emit(.toneSetsWritten(count: written))
+            } catch {
+                self.emit(.error("Tone write failed: \(error.localizedDescription)"))
+            }
+        }
+    }
+
     /// Saves the device's current project into the app-support Backups folder,
     /// returning the file URL. Throws if it can't be written (so a load that
     /// promised a backup aborts before overwriting anything).
@@ -268,39 +331,44 @@ final class EditorSession {
         }
     }
 
-    /// Writes the current inst+effect selection into a group slot, preserving the
-    /// group's MAX.
-    func storeCurrentToGroup(group: Int, num: Int, max: Int) {
+    /// Makes the device's group map match `desired`, writing only the slots
+    /// that differ. Each change is a 3-command sequence — aFE2 selects the
+    /// slot's inst and effect tones, aFE1 stores them with the group's MAX —
+    /// because aFE1 always writes the *current* selections and is also the
+    /// only MAX setter. Restores the prior position and tone selections, then
+    /// re-emits `.groups`.
+    func writeGroupMap(_ desired: [GroupList]) {
         queue.async {
-            guard let client = self.client else { return }
-            do {
-                self.flushNow()
-                try client.extWriteGroup(group: group, num: num, max: max)
-                try self.emitGroups(client)
-                self.emit(.status("Stored current selection to \(Self.groupLabel(group))-\(String(format: "%02d", num + 1))"))
-            } catch {
-                self.emit(.error("Store failed: \(error.localizedDescription)"))
+            guard let client = self.client else {
+                self.emit(.error("Connect to an aFrame before writing groups"))
+                return
             }
-        }
-    }
-
-    /// Sets a group's MAX. Since aFE1 is the only MAX setter and it also rewrites
-    /// a slot with the current selection, this recalls slot 0, stores it back
-    /// unchanged with the new MAX, then returns to the prior position.
-    func setGroupMax(group: Int, max: Int) {
-        queue.async {
-            guard let client = self.client else { return }
             do {
                 self.flushNow()
                 let prior = try client.getCurrentGroupToneNum()
-                try client.extSelectGroup(group: group, num: 0)
-                try client.extWriteGroup(group: group, num: 0, max: max)
-                try client.extSelectGroup(group: prior.group, num: prior.number)
-                try self.refreshCurrentTones(client)
+                var current = [GroupList]()
+                for g in 0..<DSPProject.memoryGroups {
+                    current.append(try client.getProjectGroupList(group: g))
+                }
+                let changes = GroupMap.diff(current: current, desired: desired)
+                for c in changes {
+                    try client.extChangeToneNum(.instrument, num: c.slot.inst)
+                    try client.extChangeToneNum(.effect, num: c.slot.effect)
+                    try client.extWriteGroup(group: c.group, num: c.num, max: c.max)
+                }
+                if !changes.isEmpty {
+                    // aFE2/aFE1 moved the position and swapped the edit
+                    // buffers; put both back the way the user had them.
+                    try client.extSelectGroup(group: prior.group, num: prior.number)
+                    try client.extChangeToneNum(.instrument, num: prior.instNum)
+                    try client.extChangeToneNum(.effect, num: prior.effectNum)
+                    try self.loadTone(.instrument, num: prior.instNum)
+                    try self.loadTone(.effect, num: prior.effectNum)
+                }
                 try self.emitGroups(client)
-                self.emit(.status("Set \(Self.groupLabel(group)) MAX to \(max)"))
+                self.emit(.groupsWritten(changedSlots: changes.count))
             } catch {
-                self.emit(.error("Set MAX failed: \(error.localizedDescription)"))
+                self.emit(.error("Group write failed: \(error.localizedDescription)"))
             }
         }
     }

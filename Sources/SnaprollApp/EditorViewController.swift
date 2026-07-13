@@ -197,6 +197,10 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     }
 
     var currentSlot: Int? { nums[domain] }
+
+    /// The loaded slot for a specific domain (independent of which domain the
+    /// editor is showing) — the group editor's "current selection" for Store.
+    func currentSlot(for sel: ToneSelect) -> Int? { nums[sel] }
     var currentToneName: String? { tones[domain]?.name }
 
     // MARK: Randomize

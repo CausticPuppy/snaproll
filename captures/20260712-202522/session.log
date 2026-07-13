@@ -1,0 +1,36 @@
+aframe-capture session 20260712-202522
+target: /dev/cu.usbserial-0001
+output: /Users/jason/Documents/ATV aFrame/captures/20260712-202522
+
+== GetVersion
+  VER.2.00-BLD.001 2019/02/28 17:58:50
+== Enter external edit mode
+  prior aFGA: group=0 num=1 max=10 inst=1 effect=1
+  prior aFGB: I02:GrowlingPot | E02:GrowlPotRev
+  aFE2 instrument -> 2 (no group write)
+  aFGA now: inst=2 effect=1 | aFGB: I03:3D MadTemple
+  VERDICT: aFGA tracks the LIVE selection (moves with aFE2) — mock differs
+  target group 4 slot 0: orig=(40,40) max=10; writing (43,45)
+  readback slot 0=(43,45) max=10 slot1=(41,41)
+  aFGA after aFE1: group=4 num=0
+  VERDICT: aFE2+aFE2+aFE1 writes an arbitrary mapping row (neighbors/MAX intact)
+  restored slot 0=(40,40) — OK
+  restored position 0-1 and tone selections
+  saved group_map_probe.txt (547 bytes)
+  original edit buffer: algo=0 name=GrowlingPot prm_num=79 (184 bytes)
+  saved naked_probe_original.bin (184 bytes)
+  uploading naked payload: algo=0 name=NAKED prm_num=0 (26 bytes)
+  aFE7 accepted the prm_num=0 payload
+  readback BIN: algo=0 name=NAKED prm_num=0 (26 bytes)
+  saved naked_probe_readback.bin (26 bytes)
+  readback TXT: algo=0 name=NAKED values=0 checksum=355
+  LCD: [?EXT EDIT MODE ?] [ Locked Int Sw  ]
+  edit buffer restored — byte-exact
+  saved naked_probe.txt (355 bytes)
+  downloaded project “aFrame Initial Project” (32512 bytes decoded)
+  saved encode_proof_device.bin (32512 bytes)
+  local re-encode is byte-exact (32512 bytes) — pushing back via aFE9
+  push accepted
+  VERDICT: device round-trips the Snaproll-encoded image byte-exact
+  saved encode_proof.txt (220 bytes)
+== Leave external edit mode
