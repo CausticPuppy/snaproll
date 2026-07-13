@@ -429,21 +429,54 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             sections[d.section, default: []].append(d)
         }
 
-        // Flow section cards into columns sequentially, balancing row counts.
-        let totalRows = descriptors.count
-        let columnCount = totalRows > 44 ? 3 : 2
-        let targetRows = (totalRows + columnCount - 1) / columnCount
+        // Instruments model the original editor's physical-mixer layout: the
+        // Mixer section's channel params (pan + level/send) render as a strip
+        // at the bottom of their timbre section's card rather than as a card
+        // of their own, and Master's level becomes a fader. (ParameterMap
+        // sections are untouched — this is purely a UI regrouping, so the
+        // randomization rules keyed on manual sections still hold.)
+        var strips = [String: [ParameterDescriptor]]()
+        if domain == .instrument {
+            let hosts = ["MixMain": "Main", "MixSub": "Sub", "MixXtra": "Xtra", "MixDry": "Dry"]
+            for d in sections["Mixer"] ?? [] {
+                let host = hosts.first { d.name.hasPrefix($0.key) }?.value ?? "Mixer"
+                strips[host, default: []].append(d)
+            }
+            if strips["Mixer"] == nil {  // every param found a host card
+                sections["Mixer"] = nil
+                sectionOrder.removeAll { $0 == "Mixer" }
+            }
+            if let master = sections["Master"] {
+                strips["Master"] = master
+                sections["Master"] = []
+            }
+        }
+        func stripWeight(_ section: String) -> Int {
+            guard let strip = strips[section], !strip.isEmpty else { return 0 }
+            let panRows = strip.filter { !Self.isFaderParam($0) }.count
+            return panRows + 6  // the fader block is roughly six rows tall
+        }
+
+        // Flow section cards into columns sequentially, balancing row-height
+        // weights (a card's rows + header + its mixer strip, if any).
+        func weight(_ section: String) -> Int {
+            (sections[section]?.count ?? 0) + 2 + stripWeight(section)
+        }
+        let totalWeight = sectionOrder.reduce(0) { $0 + weight($1) }
+        let columnCount = descriptors.count > 44 ? 3 : 2
+        let targetRows = (totalWeight + columnCount - 1) / columnCount
         var columns: [[NSView]] = [[]]
         var rowsInColumn = 0
         for section in sectionOrder {
             let params = sections[section]!
-            if rowsInColumn > 0, rowsInColumn + params.count / 2 > targetRows,
+            if rowsInColumn > 0, rowsInColumn + weight(section) / 2 > targetRows,
                columns.count < columnCount {
                 columns.append([])
                 rowsInColumn = 0
             }
-            columns[columns.count - 1].append(makeCard(section: section, params: params, tone: tone))
-            rowsInColumn += params.count + 2
+            columns[columns.count - 1].append(makeCard(section: section, params: params,
+                                                       strip: strips[section] ?? [], tone: tone))
+            rowsInColumn += weight(section)
         }
 
         for column in columns {
@@ -470,7 +503,87 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         updateCompCurve()
     }
 
-    private func makeCard(section: String, params: [ParameterDescriptor], tone: ToneData) -> NSView {
+    private func makeRow(_ d: ParameterDescriptor, tone: ToneData) -> ParameterRowView {
+        let row = ParameterRowView(
+            descriptor: d,
+            range: ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
+            value: d.index < tone.values.count ? tone.values[d.index] : 0)
+        // Mute readouts fold in the tone's global Mute Sens for their
+        // "ON(n)" form; feed the live value in and render once with it.
+        if case .muteSensitivity = d.display {
+            row.contextProvider = { [weak self] in
+                guard let self, let tone = self.tones[self.domain],
+                      tone.values.indices.contains(ParameterMap.muteSensIndex)
+                else { return .init() }
+                return .init(globalMuteSens: tone.values[ParameterMap.muteSensIndex])
+            }
+            row.apply(value: row.value)
+        }
+        row.onChange = { [weak self] value in
+            guard let self else { return }
+            self.tones[self.domain]?.values[d.index] = value
+            self.onParamChange?(self.domain, d.index, value)
+            if d.section == "Comp" { self.updateCompCurve() }
+            // Editing Mute Sens changes every mute row's "ON(n)" readout.
+            if d.index == ParameterMap.muteSensIndex {
+                for r in self.rowViews.values where r.descriptor.display == .muteSensitivity {
+                    r.apply(value: r.value)
+                }
+            }
+        }
+        rowViews[d.index] = row
+        return row
+    }
+
+    /// Whether a mixer param renders as a vertical fader (levels/sends) rather
+    /// than a pan row.
+    private static func isFaderParam(_ d: ParameterDescriptor) -> Bool {
+        if case .levelWithMode = d.display { return true }
+        return d.name.hasSuffix("Lev")  // MixMasterLev is a plain 0–127 level
+    }
+
+    /// Strip-local fader title: "MixMainLev" → "Lev", "MixDryCSnd" → "C Snd".
+    private static func faderTitle(_ name: String) -> String {
+        let kind = name.hasSuffix("Snd") ? "Snd" : "Lev"
+        if name.hasPrefix("MixDryC") { return "C \(kind)" }
+        if name.hasPrefix("MixDryE") { return "E \(kind)" }
+        return kind
+    }
+
+    /// The channel-strip views appended to a card: pan rows, then the
+    /// level/send faders side by side — a card-width mixer strip.
+    private func makeMixerStrip(_ strip: [ParameterDescriptor], tone: ToneData) -> [NSView] {
+        var views: [NSView] = []
+        for d in strip where !Self.isFaderParam(d) {
+            views.append(makeRow(d, tone: tone))
+        }
+        let faders = strip.filter(Self.isFaderParam)
+            .map { d -> VerticalFaderView in
+                let fader = VerticalFaderView(
+                    title: Self.faderTitle(d.name),
+                    descriptor: d,
+                    range: ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
+                    value: d.index < tone.values.count ? tone.values[d.index] : 0)
+                fader.onChange = { [weak self] value in
+                    guard let self else { return }
+                    self.tones[self.domain]?.values[d.index] = value
+                    self.onParamChange?(self.domain, d.index, value)
+                }
+                return fader
+            }
+            .sorted { Self.faderTitle($0.descriptor.name) < Self.faderTitle($1.descriptor.name) }
+        if !faders.isEmpty {
+            let row = NSStackView(views: faders)
+            row.orientation = .horizontal
+            row.alignment = .top
+            row.distribution = .fillEqually
+            views.append(row)
+        }
+        return views
+    }
+
+    private func makeCard(section: String, params: [ParameterDescriptor],
+                          strip: [ParameterDescriptor] = [], tone: ToneData) -> NSView {
         let title = NSTextField(labelWithString: section.uppercased())
         title.font = .systemFont(ofSize: 11, weight: .semibold)
         title.textColor = Palette.sectionTitle
@@ -515,35 +628,23 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         }
 
         for d in params {
-            let row = ParameterRowView(
-                descriptor: d,
-                range: ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
-                value: d.index < tone.values.count ? tone.values[d.index] : 0)
-            // Mute readouts fold in the tone's global Mute Sens for their
-            // "ON(n)" form; feed the live value in and render once with it.
-            if case .muteSensitivity = d.display {
-                row.contextProvider = { [weak self] in
-                    guard let self, let tone = self.tones[self.domain],
-                          tone.values.indices.contains(ParameterMap.muteSensIndex)
-                    else { return .init() }
-                    return .init(globalMuteSens: tone.values[ParameterMap.muteSensIndex])
-                }
-                row.apply(value: row.value)
+            views.append(makeRow(d, tone: tone))
+        }
+
+        if !strip.isEmpty {
+            // A separator + MIXER caption set the strip off from the timbre
+            // rows above it (skipped when the whole card IS the strip, like
+            // Master's).
+            if !params.isEmpty {
+                let divider = NSBox()
+                divider.boxType = .separator
+                views.append(divider)
+                let caption = NSTextField(labelWithString: "MIXER")
+                caption.font = .systemFont(ofSize: 10, weight: .semibold)
+                caption.textColor = Palette.sectionTitle
+                views.append(caption)
             }
-            row.onChange = { [weak self] value in
-                guard let self else { return }
-                self.tones[self.domain]?.values[d.index] = value
-                self.onParamChange?(self.domain, d.index, value)
-                if d.section == "Comp" { self.updateCompCurve() }
-                // Editing Mute Sens changes every mute row's "ON(n)" readout.
-                if d.index == ParameterMap.muteSensIndex {
-                    for r in self.rowViews.values where r.descriptor.display == .muteSensitivity {
-                        r.apply(value: r.value)
-                    }
-                }
-            }
-            rowViews[d.index] = row
-            views.append(row)
+            views += makeMixerStrip(strip, tone: tone)
         }
 
         let inner = NSStackView(views: views)
