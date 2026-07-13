@@ -21,16 +21,20 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // Toolbar controls
     private let portPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let connectButton = NSButton(title: "Connect", target: nil, action: nil)
-    private let saveButton = NSButton(title: "Save", target: nil, action: nil)
     private let randomizeButton = NSButton(
         image: NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize")!,
         target: nil, action: nil)
+    private let miniMonitor = MiniMonitorView()
+    /// Whether the toolbar's compact monitor is running (persisted). The
+    /// session polls while this is on or the Monitor window is open.
+    private var miniMonitorActive = UserDefaults.standard.object(forKey: "MiniMonitorActive")
+        .flatMap { $0 as? Bool } ?? true
 
     private let randomizePopover = NSPopover()
     private let randomizeVC = RandomizePopoverViewController()
 
-    // Group/tone navigation bar (top of the detail pane)
-    private let groupNav = GroupNavView()
+    // Group/tone navigation, embedded in the editor's fixed header row.
+    private var groupNav: GroupNavView { editorVC.groupNav }
 
     // Status bar
     private let statusLabel = NSTextField(labelWithString: "Not connected")
@@ -64,8 +68,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     // MARK: Layout
 
     private func buildContent() {
-        // Detail area: nav bar + editor + status bar. Tone browsing lives in the
-        // editor header's popup, so there's no sidebar pane.
+        // Detail area: editor (whose fixed header carries the group/tone nav)
+        // + status bar. Tone browsing lives in the editor header's popup, so
+        // there's no sidebar pane.
         let detailVC = NSViewController()
         let container = NSView()
         detailVC.view = container
@@ -74,20 +79,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         let editorView = editorVC.view
         editorView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Navigation bar across the top of the detail pane, above the editor.
-        let navBackground = NSVisualEffectView()
-        navBackground.material = .headerView
-        navBackground.blendingMode = .withinWindow
-        navBackground.translatesAutoresizingMaskIntoConstraints = false
-        groupNav.translatesAutoresizingMaskIntoConstraints = false
-        navBackground.addSubview(groupNav)
-
-        let navDivider = NSBox()
-        navDivider.boxType = .separator
-        navDivider.translatesAutoresizingMaskIntoConstraints = false
-
-        container.addSubview(navBackground)
-        container.addSubview(navDivider)
         container.addSubview(editorView)
 
         statusDot.font = .systemFont(ofSize: 9)
@@ -118,20 +109,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         container.addSubview(divider)
 
         NSLayoutConstraint.activate([
-            navBackground.topAnchor.constraint(equalTo: container.topAnchor),
-            navBackground.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            navBackground.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            navBackground.heightAnchor.constraint(equalToConstant: 40),
-            groupNav.leadingAnchor.constraint(equalTo: navBackground.leadingAnchor),
-            groupNav.trailingAnchor.constraint(equalTo: navBackground.trailingAnchor),
-            groupNav.topAnchor.constraint(equalTo: navBackground.topAnchor),
-            groupNav.bottomAnchor.constraint(equalTo: navBackground.bottomAnchor),
-
-            navDivider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            navDivider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            navDivider.topAnchor.constraint(equalTo: navBackground.bottomAnchor),
-
-            editorView.topAnchor.constraint(equalTo: navDivider.bottomAnchor),
+            editorView.topAnchor.constraint(equalTo: container.topAnchor),
             editorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             editorView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             editorView.bottomAnchor.constraint(equalTo: statusBackground.topAnchor),
@@ -174,11 +152,11 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private static let toneCopyItemID = NSToolbarItem.Identifier("toneCopy")
     private static let monitorItemID = NSToolbarItem.Identifier("monitor")
     private static let randomizeItemID = NSToolbarItem.Identifier("randomize")
-    private static let saveItemID = NSToolbarItem.Identifier("save")
+    private static let miniMonitorItemID = NSToolbarItem.Identifier("miniMonitor")
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.groupsItemID, Self.toneCopyItemID, Self.monitorItemID, Self.randomizeItemID,
-         .flexibleSpace, Self.connectionItemID, Self.saveItemID]
+         .flexibleSpace, Self.connectionItemID, Self.miniMonitorItemID]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -249,17 +227,14 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             item.label = "Randomize"
             item.toolTip = "Randomize parameters of the current tone"
             return item
-        case Self.saveItemID:
-            saveButton.target = self
-            saveButton.action = #selector(saveCurrentTone)
-            saveButton.bezelStyle = .texturedRounded
-            saveButton.keyEquivalent = "s"
-            saveButton.keyEquivalentModifierMask = [.command]
-            saveButton.isEnabled = false
+        case Self.miniMonitorItemID:
+            miniMonitor.onToggle = { [weak self] in self?.toggleMiniMonitor() }
+            miniMonitor.setState(connected: false, active: miniMonitorActive)
+            miniMonitor.widthAnchor.constraint(equalToConstant: 150).isActive = true
+            miniMonitor.heightAnchor.constraint(equalToConstant: 27).isActive = true
             let item = NSToolbarItem(itemIdentifier: id)
-            item.view = saveButton
-            item.label = "Save"
-            item.toolTip = "Write the edit buffer to its project slot (⌘S)"
+            item.view = miniMonitor
+            item.label = "Live Monitor"
             return item
         default:
             return nil
@@ -318,6 +293,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         editorVC.onRename = { [weak self] sel, name in
             self?.session.rename(sel, to: name)
         }
+        editorVC.onSave = { [weak self] in
+            self?.saveCurrentTone()
+        }
 
         session.onEvent = { [weak self] event in
             guard let self else { return }
@@ -329,12 +307,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.firmwareLabel.stringValue = firmware
                 self.connectButton.title = "Disconnect"
                 self.connectButton.isEnabled = true
-                self.saveButton.isEnabled = true
                 self.randomizeButton.isEnabled = true
                 self.groupNav.update(from: group)
-                if self.monitorWC?.window?.isVisible == true {
-                    self.session.startMonitoring()
-                }
+                self.miniMonitor.setState(connected: true, active: self.miniMonitorActive)
+                self.updateMonitoringDemand()
                 if self.groupEditorWC?.window?.isVisible == true {
                     self.session.loadGroups()
                 }
@@ -345,10 +321,10 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.firmwareLabel.stringValue = ""
                 self.connectButton.title = "Connect"
                 self.connectButton.isEnabled = true
-                self.saveButton.isEnabled = false
                 self.randomizeButton.isEnabled = false
                 self.randomizePopover.close()
                 self.editorVC.clear()
+                self.miniMonitor.setState(connected: false, active: self.miniMonitorActive)
                 self.monitorWC?.setIdle("Not connected")
                 self.groupEditorWC?.setIdle()
                 self.toneCopyWC?.setConnected(false)
@@ -361,6 +337,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.editorVC.showTone(tone, num: num, for: sel)
             case .meters(let peak, let pressure):
                 self.monitorWC?.update(peak: peak, pressure: pressure)
+                self.miniMonitor.update(peak: peak, pressure: pressure)
             case .groups(let list, let current):
                 self.groupEditorWC?.update(lists: list, current: current)
                 self.groupNav.update(from: current)
@@ -437,15 +414,34 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     @objc func showMonitor(_ sender: Any?) {
         if monitorWC == nil {
             let wc = MonitorWindowController()
-            wc.onClose = { [weak self] in self?.session.stopMonitoring() }
+            // Deferred: windowWillClose fires while the window still reports
+            // visible, which would keep the poll loop alive.
+            wc.onClose = { [weak self] in
+                DispatchQueue.main.async { self?.updateMonitoringDemand() }
+            }
             monitorWC = wc
         }
         monitorWC?.showWindow(nil)
         if session.isConnected {
-            session.startMonitoring()
+            updateMonitoringDemand()
         } else {
             monitorWC?.setIdle("Waiting for connection…")
         }
+    }
+
+    /// The toolbar's compact monitor and the Monitor window share one poll
+    /// loop: run it while either wants samples, stop it when neither does.
+    private func updateMonitoringDemand() {
+        let wanted = session.isConnected
+            && (miniMonitorActive || monitorWC?.window?.isVisible == true)
+        wanted ? session.startMonitoring() : session.stopMonitoring()
+    }
+
+    private func toggleMiniMonitor() {
+        miniMonitorActive.toggle()
+        UserDefaults.standard.set(miniMonitorActive, forKey: "MiniMonitorActive")
+        miniMonitor.setState(connected: session.isConnected, active: miniMonitorActive)
+        updateMonitoringDemand()
     }
 
     @objc private func showRandomize() {

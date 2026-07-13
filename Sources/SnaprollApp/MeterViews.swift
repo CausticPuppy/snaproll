@@ -1,4 +1,5 @@
 import AppKit
+import AFrameKit
 
 /// A scrolling strip chart: samples enter at the right and scroll left, over a
 /// fixed window of recent history. The vertical scale sticks to the largest
@@ -106,6 +107,146 @@ final class StripChartView: NSView {
             let sz = vs.size(withAttributes: valAttrs)
             vs.draw(at: NSPoint(x: b.width - sz.width - 8, y: b.height - 18), withAttributes: valAttrs)
         }
+    }
+}
+
+/// A toolbar-sized live monitor: a scrolling pressure sparkline (pitch blue,
+/// mute purple) beside four mini peak bars (In C/E, Out L/R). Clicking it
+/// toggles live polling on/off; the paused and disconnected states draw
+/// dimmed with a play glyph so the toggle is discoverable.
+final class MiniMonitorView: NSView {
+    /// Fired on click; the owner flips the active state and re-renders.
+    var onToggle: (() -> Void)?
+
+    private var connected = false
+    private var active = false
+    private var pitch: [Double] = []
+    private var mute: [Double] = []
+    private var levels: [Double] = [0, 0, 0, 0]
+    private let capacity = 90  // ~3 s of history at 30 Hz
+    private let pressureMax = 100.0
+    private let levelMax = 15.0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        updateTooltip()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: 150, height: 27) }
+
+    func setState(connected: Bool, active: Bool) {
+        self.connected = connected
+        self.active = active
+        if !connected || !active { clearTraces() }
+        updateTooltip()
+        needsDisplay = true
+    }
+
+    func update(peak: PeakLevels, pressure: PressureLevels) {
+        guard connected, active else { return }
+        pitch.append(Double(pressure.pitch))
+        mute.append(Double(pressure.mute))
+        if pitch.count > capacity {
+            pitch.removeFirst(pitch.count - capacity)
+            mute.removeFirst(mute.count - capacity)
+        }
+        levels = [peak.inCenter, peak.inEdge, peak.outL, peak.outR].map {
+            Swift.min(Double($0), levelMax)
+        }
+        needsDisplay = true
+    }
+
+    private func clearTraces() {
+        pitch.removeAll()
+        mute.removeAll()
+        levels = [0, 0, 0, 0]
+    }
+
+    private func updateTooltip() {
+        toolTip = !connected
+            ? "Live monitor (connect to an aFrame to start)"
+            : (active ? "Live monitor — click to pause"
+                      : "Live monitor paused — click to resume")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onToggle?()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let b = bounds
+        let dimmed = !connected || !active
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let bg = NSBezierPath(roundedRect: b, xRadius: 6, yRadius: 6)
+            NSColor.controlBackgroundColor.setFill()
+            bg.fill()
+
+            // Right block: four mini peak bars.
+            let barW: CGFloat = 5, barGap: CGFloat = 3
+            let barsW = barW * 4 + barGap * 3
+            let barArea = NSRect(x: b.maxX - barsW - 8, y: 5, width: barsW, height: b.height - 10)
+            for (i, v) in levels.enumerated() {
+                let track = NSRect(x: barArea.minX + CGFloat(i) * (barW + barGap),
+                                   y: barArea.minY, width: barW, height: barArea.height)
+                NSColor.separatorColor.withAlphaComponent(0.4).setFill()
+                NSBezierPath(roundedRect: track, xRadius: 2, yRadius: 2).fill()
+                let frac = CGFloat(v / levelMax)
+                if frac > 0 {
+                    let fill = NSRect(x: track.minX, y: track.minY,
+                                      width: track.width, height: track.height * frac)
+                    (frac > 0.85 ? NSColor.systemRed
+                        : frac > 0.6 ? .systemYellow : .systemGreen)
+                        .withAlphaComponent(dimmed ? 0.3 : 1).setFill()
+                    NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
+                }
+            }
+
+            // Left block: the pressure sparkline.
+            let plot = NSRect(x: 6, y: 5, width: barArea.minX - 14, height: b.height - 10)
+            for (samples, color) in [(pitch, NSColor.systemBlue), (mute, .systemPurple)]
+            where samples.count > 1 {
+                let path = NSBezierPath()
+                path.lineWidth = 1.2
+                let stepX = plot.width / CGFloat(capacity - 1)
+                let start = capacity - samples.count
+                for (i, s) in samples.enumerated() {
+                    let x = plot.minX + CGFloat(start + i) * stepX
+                    let y = plot.minY + Swift.min(CGFloat(s / pressureMax), 1) * plot.height
+                    let pt = NSPoint(x: x, y: y)
+                    i == 0 ? path.move(to: pt) : path.line(to: pt)
+                }
+                color.withAlphaComponent(dimmed ? 0.3 : 0.9).setStroke()
+                path.stroke()
+            }
+
+            // Paused / disconnected: a play glyph over the (flat) sparkline.
+            if dimmed {
+                let symbol = connected ? "play.fill" : "waveform.slash"
+                if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold)) {
+                    let tinted = image.tinted(with: .tertiaryLabelColor)
+                    tinted.draw(in: NSRect(x: plot.midX - 6, y: plot.midY - 6, width: 12, height: 12))
+                }
+            }
+
+            NSColor.separatorColor.setStroke()
+            bg.lineWidth = 1
+            bg.stroke()
+        }
+    }
+}
+
+private extension NSImage {
+    func tinted(with color: NSColor) -> NSImage {
+        let image = NSImage(size: size, flipped: false) { rect in
+            color.set()
+            rect.fill()
+            self.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1)
+            return true
+        }
+        return image
     }
 }
 

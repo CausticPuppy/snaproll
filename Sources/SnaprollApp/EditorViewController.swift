@@ -10,6 +10,12 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     /// Requests loading a different slot in the current domain (from the
     /// header's tone browser popover).
     var onSelectTone: ((ToneSelect, Int) -> Void)?
+    /// Requests saving the current tone to its project slot (header Save, ⌘S).
+    var onSave: (() -> Void)?
+
+    /// The group/tone navigator, embedded in the fixed header row. Owned here
+    /// for layout; the main window controller wires its callbacks and state.
+    let groupNav = GroupNavView()
 
     private(set) var domain: ToneSelect = .instrument
     private var tones: [ToneSelect: ToneData] = [:]
@@ -25,8 +31,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private let nameField = NSTextField(string: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let browseButton = NSButton()
-    // The separator under the fixed header, hidden along with the header
-    // content when no tone is loaded so the empty-state message stands alone.
+    private let saveButton = NSButton()
     private let headerDivider = NSBox()
     private let columnsStack = NSStackView()
     private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame (or the mock device) to start editing")
@@ -71,9 +76,11 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         nameField.delegate = self
         nameField.target = self
         nameField.action = #selector(nameEdited)
-        // Let the name field absorb the row width so long names don't clip; the
-        // browse chevron keeps its intrinsic size at the trailing edge.
-        nameField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        nameField.lineBreakMode = .byTruncatingTail
+        // The name hugs its content (Browse/Save sit right beside it) but
+        // yields first when the header runs out of room, truncating rather
+        // than squeezing the nav controls.
+        nameField.setContentCompressionResistancePriority(.init(740), for: .horizontal)
 
         browseButton.title = "Browse"
         browseButton.image = NSImage(systemSymbolName: "chevron.down",
@@ -86,24 +93,42 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         browseButton.setContentHuggingPriority(.required, for: .horizontal)
         browseButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        // Tone name + a disclosure chevron that opens the tone browser popover.
-        let nameRow = NSStackView(views: [nameField, browseButton])
-        nameRow.orientation = .horizontal
-        nameRow.alignment = .centerY
-        nameRow.spacing = 6
+        saveButton.title = "Save"
+        saveButton.bezelStyle = .rounded
+        saveButton.font = .systemFont(ofSize: 12)
+        saveButton.target = self
+        saveButton.action = #selector(saveClicked)
+        saveButton.keyEquivalent = "s"
+        saveButton.keyEquivalentModifierMask = [.command]
+        saveButton.toolTip = "Write the edit buffer to its project slot (⌘S)"
+        saveButton.setContentHuggingPriority(.required, for: .horizontal)
+        saveButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         subtitleLabel.font = .systemFont(ofSize: 12)
         subtitleLabel.textColor = Palette.secondaryText
+        subtitleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.setContentCompressionResistancePriority(.init(740), for: .horizontal)
 
-        // Fixed header: the tone name, Browse button, and subtitle stay pinned
-        // at the top of the editor while the parameter cards scroll beneath
-        // them, so they remain visible and reachable no matter how far down the
-        // player has scrolled.
-        let header = NSStackView(views: [nameRow, subtitleLabel])
-        header.orientation = .vertical
-        header.alignment = .leading
-        header.spacing = 2
-        header.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 12, right: 24)
+        // Name over subtitle, forming the header's leading block.
+        let nameBlock = NSStackView(views: [nameField, subtitleLabel])
+        nameBlock.orientation = .vertical
+        nameBlock.alignment = .leading
+        nameBlock.spacing = 1
+
+        // Fixed header: one bar with the tone identity (name, subtitle,
+        // Browse, Save) on the left and the group/tone navigator filling the
+        // right. It stays pinned while the parameter cards scroll beneath, so
+        // everything up here remains reachable at any scroll position.
+        groupNav.setContentHuggingPriority(.init(1), for: .horizontal)
+        // GroupNavView only centers its children vertically, so it needs an
+        // explicit height for the stack to lay it out.
+        groupNav.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        let header = NSStackView(views: [nameBlock, browseButton, saveButton, groupNav])
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.spacing = 8
+        header.setCustomSpacing(12, after: nameBlock)
+        header.edgeInsets = NSEdgeInsets(top: 8, left: 24, bottom: 8, right: 0)
         header.translatesAutoresizingMaskIntoConstraints = false
 
         headerDivider.boxType = .separator
@@ -144,6 +169,9 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             header.topAnchor.constraint(equalTo: container.topAnchor),
             header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            // Constant height so the bar doesn't jump when the tone-identity
+            // controls hide in the disconnected state.
+            header.heightAnchor.constraint(equalToConstant: 58),
 
             headerDivider.topAnchor.constraint(equalTo: header.bottomAnchor),
             headerDivider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -164,10 +192,6 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             content.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             content.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             columnsStack.widthAnchor.constraint(equalTo: outer.widthAnchor, constant: -48),
-            // Give the name row the full header width; the name field expands
-            // within it (a leading-aligned editable field otherwise takes only
-            // its intrinsic width and clips the last glyph on long names).
-            nameRow.widthAnchor.constraint(equalTo: header.widthAnchor, constant: -48),
         ])
 
         view = container
@@ -372,16 +396,16 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             nameField.stringValue = ""
             subtitleLabel.stringValue = ""
             nameField.isHidden = true
-            browseButton.isHidden = true
             subtitleLabel.isHidden = true
-            headerDivider.isHidden = true
+            browseButton.isHidden = true
+            saveButton.isHidden = true
             emptyLabel.isHidden = false
             return
         }
         nameField.isHidden = false
-        browseButton.isHidden = false
         subtitleLabel.isHidden = false
-        headerDivider.isHidden = false
+        browseButton.isHidden = false
+        saveButton.isHidden = false
         browseButton.toolTip = domain == .instrument ? "Browse instruments" : "Browse effects"
         emptyLabel.isHidden = true
         nameField.stringValue = tone.name
@@ -547,6 +571,10 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     }
 
     // MARK: Rename
+
+    @objc private func saveClicked() {
+        onSave?()
+    }
 
     @objc private func nameEdited() {
         guard tones[domain] != nil else { return }
