@@ -110,13 +110,13 @@ final class StripChartView: NSView {
     }
 }
 
-/// A toolbar-sized live monitor: a scrolling pressure sparkline (pitch blue,
+/// A compact live monitor: a scrolling pressure sparkline (pitch blue,
 /// mute purple) beside four mini peak bars (In C/E, Out L/R). Clicking it
-/// toggles live polling on/off; the paused and disconnected states draw
-/// dimmed with a play glyph so the toggle is discoverable.
+/// opens the full Monitor window; pause/resume lives on the small play/pause
+/// button its owner places beside it.
 final class MiniMonitorView: NSView {
-    /// Fired on click; the owner flips the active state and re-renders.
-    var onToggle: (() -> Void)?
+    /// Fired on click; the owner opens the full Monitor window.
+    var onOpen: (() -> Void)?
 
     private var connected = false
     private var active = false
@@ -166,13 +166,17 @@ final class MiniMonitorView: NSView {
 
     private func updateTooltip() {
         toolTip = !connected
-            ? "Live monitor (connect to an aFrame to start)"
-            : (active ? "Live monitor — click to pause"
-                      : "Live monitor paused — click to resume")
+            ? "Live monitor (connect to an aFrame to start) — click to open the Monitor window"
+            : (active ? "Live monitor — click to open the Monitor window"
+                      : "Live monitor paused — click to open the Monitor window")
     }
 
     override func mouseDown(with event: NSEvent) {
-        onToggle?()
+        onOpen?()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -221,10 +225,11 @@ final class MiniMonitorView: NSView {
                 path.stroke()
             }
 
-            // Paused / disconnected: a play glyph over the (flat) sparkline.
-            if dimmed {
-                let symbol = connected ? "play.fill" : "waveform.slash"
-                if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            // Disconnected: a slashed waveform over the (flat) sparkline. The
+            // paused state stays plain — the play/pause button beside the view
+            // already shows it.
+            if !connected {
+                if let image = NSImage(systemSymbolName: "waveform.slash", accessibilityDescription: nil)?
                     .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold)) {
                     let tinted = image.tinted(with: .tertiaryLabelColor)
                     tinted.draw(in: NSRect(x: plot.midX - 6, y: plot.midY - 6, width: 12, height: 12))
