@@ -14,8 +14,16 @@
 #                  app is signed), the zip is submitted for notarization and
 #                  the ticket is stapled to the .app.
 #   UNIVERSAL=1    Build a universal (arm64 + x86_64) binary instead of native.
+#   VERSION        Marketing version for CFBundleShortVersionString (default
+#                  0.1.0). Must be one to three period-separated integers —
+#                  put any pre-release label (e.g. -beta.1) on the git tag, not
+#                  here.
+#   BUILD          Build number for CFBundleVersion (default 1).
 set -e
 cd "$(dirname "$0")/.."
+
+VERSION="${VERSION:-0.1.0}"
+BUILD="${BUILD:-1}"
 
 BUILD_FLAGS="-c release"
 if [ "$UNIVERSAL" = "1" ]; then
@@ -50,7 +58,7 @@ if [ -f "$ICON_SRC" ]; then
     rm -rf "$(dirname "$ICONSET")"
 fi
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -61,15 +69,15 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key><string>Snaproll</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+    <key>CFBundleVersion</key><string>${BUILD}</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 PLIST
-echo "Built $APP"
+echo "Built $APP ($VERSION build $BUILD)"
 
 # Code signing (optional) — hardened runtime is required for notarization.
 if [ -n "$DEVELOPER_ID" ]; then

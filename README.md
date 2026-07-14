@@ -24,9 +24,13 @@ in the dialog. You only need to do this once. (Equivalently, from Terminal:
 `.build/Snaproll.zip` ready to attach to a GitHub Release:
 
 ```sh
-sh Scripts/make-app.sh              # unsigned build
-UNIVERSAL=1 sh Scripts/make-app.sh  # universal arm64 + x86_64 binary
+sh Scripts/make-app.sh                        # unsigned build (version 0.1.0)
+VERSION=0.1.0 sh Scripts/make-app.sh          # set the bundle version explicitly
+UNIVERSAL=1 sh Scripts/make-app.sh            # universal arm64 + x86_64 binary
 ```
+
+`VERSION` must be numeric (one to three integers); put any pre-release label
+on the git tag instead, e.g. `v0.1.0-beta.1`.
 
 To ship a build that opens with no Gatekeeper warning you need an Apple
 Developer Program membership and a "Developer ID Application" certificate,
