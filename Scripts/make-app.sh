@@ -79,6 +79,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 echo "Built $APP ($VERSION build $BUILD)"
 
+# Strip extended attributes so the signature seals clean files and the zip
+# doesn't carry ._ AppleDouble sidecars.
+xattr -cr "$APP"
+
 # Code signing — hardened runtime is required for notarization.
 if [ -n "$DEVELOPER_ID" ]; then
     codesign --force --deep --options runtime --timestamp \

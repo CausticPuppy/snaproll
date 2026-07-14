@@ -96,12 +96,28 @@ func buildMainMenu(menuTarget: AnyObject? = nil, preferencesTarget: AnyObject? =
 }
 
 /// Sets the Dock/app icon from the bundled logo. The `.app` bundle also carries
-/// an `.icns` (for the Finder icon), but this makes the icon appear when the app
-/// is launched via `swift run`, which has no bundle icon.
+/// an `.icns` (for the Finder icon); this sets the running app's Dock icon, and
+/// makes an icon appear when launched via `swift run`, which has no bundle icon.
+///
+/// We search resource locations by hand rather than touch `Bundle.module`: that
+/// SwiftPM-generated accessor is a lazy static that calls `fatalError` when it
+/// can't locate the resource bundle, and merely reading it would crash the app
+/// (it can't be guarded with `if let`). That trap fires once the packaged .app
+/// is copied to another machine, where the resource-bundle lookup fails.
 func applyAppIcon(to app: NSApplication) {
-    if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
-       let icon = NSImage(contentsOf: url) {
-        app.applicationIconImage = icon
+    let roots = [Bundle.main.resourceURL, Bundle.main.bundleURL].compactMap { $0 }
+    let relativePaths = [
+        "AppIcon.icns",                            // packaged .app (Contents/Resources)
+        "Snaproll_SnaprollApp.bundle/AppIcon.png", // swift run + packaged fallback
+    ]
+    for root in roots {
+        for path in relativePaths {
+            let url = root.appendingPathComponent(path)
+            if let icon = NSImage(contentsOf: url) {
+                app.applicationIconImage = icon
+                return
+            }
+        }
     }
 }
 

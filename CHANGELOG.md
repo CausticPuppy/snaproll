@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-13
+
+### Fixed
+
+- Crash on launch when the packaged `.app` is run on a machine other than the
+  build machine. The app icon was loaded via SwiftPM's `Bundle.module`, whose
+  lazy accessor calls `fatalError` (and so crashes uncatchably) when it can't
+  locate the resource bundle after the app is copied/downloaded. The icon is
+  now loaded by searching known resource paths directly.
+
+### Changed
+
+- `Scripts/make-app.sh` strips extended attributes before signing, so the
+  ad-hoc signature seals clean files and the distributable zip is tidier.
+
 ## [0.1.0] - 2026-07-13
 
 First public build — a native Swift/AppKit editor for the ATV aFrame, and an
@@ -44,5 +59,6 @@ against real VER.2.00 hardware.
   byte in LZ plaintext. The encoder uses a safe fallback, and a wrong guess is
   rejected by the device's project checksum, so it cannot corrupt anything.
 
-[Unreleased]: https://github.com/CausticPuppy/snaproll/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/CausticPuppy/snaproll/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/CausticPuppy/snaproll/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CausticPuppy/snaproll/releases/tag/v0.1.0
