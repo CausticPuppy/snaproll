@@ -79,14 +79,21 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 echo "Built $APP ($VERSION build $BUILD)"
 
-# Code signing (optional) — hardened runtime is required for notarization.
+# Code signing — hardened runtime is required for notarization.
 if [ -n "$DEVELOPER_ID" ]; then
     codesign --force --deep --options runtime --timestamp \
         --sign "$DEVELOPER_ID" "$APP"
     codesign --verify --strict --verbose=2 "$APP"
     echo "Signed $APP with: $DEVELOPER_ID"
 else
-    echo "Skipping code signing (DEVELOPER_ID not set) — build will trip Gatekeeper."
+    # No Developer ID: ad-hoc sign so the bundle carries a valid, self-consistent
+    # signature (seals resources + binds Info.plist). Without this the linker's
+    # ad-hoc signature covers only the executable, leaving the bundle unverifiable
+    # and, on Apple Silicon, prone to launch failures. This does NOT remove the
+    # Gatekeeper "unidentified developer" warning — only notarization does.
+    codesign --force --deep --sign - "$APP"
+    codesign --verify --strict --verbose=2 "$APP"
+    echo "Ad-hoc signed $APP (no DEVELOPER_ID) — still trips Gatekeeper; use right-click > Open."
 fi
 
 # Zip for distribution (ditto preserves the bundle + any signature).
