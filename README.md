@@ -12,11 +12,30 @@ Grab the latest `Snaproll.zip` from the
 [Releases](../../releases) page, unzip it, and drag `Snaproll.app` to
 `/Applications`. Requires macOS 13 (Ventura) or later on Apple Silicon.
 
-If macOS reports that the app "cannot be opened because the developer cannot
-be verified," it just means this build isn't notarized by Apple. To open it
-anyway, **right-click (or Control-click) `Snaproll.app` → Open**, then confirm
-in the dialog. You only need to do this once. (Equivalently, from Terminal:
-`xattr -dr com.apple.quarantine /Applications/Snaproll.app`.)
+These builds are signed but **not notarized by Apple**, so macOS Gatekeeper
+will warn on first launch. This is expected — the app is fine, macOS just
+can't confirm it came from a registered developer. Open it once using the
+steps for your macOS version:
+
+**macOS 15 (Sequoia) and later:**
+
+1. Double-click `Snaproll.app`. You'll see *"Apple could not verify 'Snaproll'
+   is free of malware."* — click **Done** (not "Move to Trash").
+2. Open **System Settings → Privacy & Security** and scroll to the **Security**
+   section. You'll see *"Snaproll was blocked to protect your Mac"* with an
+   **Open Anyway** button.
+3. Click **Open Anyway**, authenticate, then confirm. macOS remembers the
+   choice, so it launches normally from then on.
+
+**macOS 13–14 (Ventura / Sonoma):** right-click (or Control-click)
+`Snaproll.app` → **Open**, then confirm in the dialog.
+
+**Any macOS (Terminal, simplest):** strip the download quarantine flag, then
+open normally:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Snaproll.app
+```
 
 ## Building a release
 
