@@ -110,21 +110,17 @@ final class StripChartView: NSView {
     }
 }
 
-/// A compact live monitor: a scrolling pressure sparkline (pitch blue,
-/// mute purple) beside four mini peak bars (In C/E, Out L/R). Clicking it
-/// opens the full Monitor window; pause/resume lives on the small play/pause
-/// button its owner places beside it.
-final class MiniMonitorView: NSView {
+/// The header's compact input monitor: labeled horizontal peak bars for the
+/// two input zones (Center and Edge, from aFG8), sitting where the retired
+/// mini monitor used to. Clicking it opens the full Monitor window. The rest
+/// of the signal path reads downward from here — pressure traces in the
+/// Pressure card, output L/R meters in the Master strip.
+final class InputMonitorView: NSView {
     /// Fired on click; the owner opens the full Monitor window.
     var onOpen: (() -> Void)?
 
     private var connected = false
-    private var active = false
-    private var pitch: [Double] = []
-    private var mute: [Double] = []
-    private var levels: [Double] = [0, 0, 0, 0]
-    private let capacity = 90  // ~3 s of history at 30 Hz
-    private let pressureMax = 100.0
+    private var levels: [Double] = [0, 0]  // Center, Edge
     private let levelMax = 15.0
 
     override init(frame frameRect: NSRect) {
@@ -134,41 +130,25 @@ final class MiniMonitorView: NSView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 150, height: 27) }
+    override var intrinsicContentSize: NSSize { NSSize(width: 140, height: 30) }
 
-    func setState(connected: Bool, active: Bool) {
+    func setConnected(_ connected: Bool) {
         self.connected = connected
-        self.active = active
-        if !connected || !active { clearTraces() }
+        if !connected { levels = [0, 0] }
         updateTooltip()
         needsDisplay = true
     }
 
-    func update(peak: PeakLevels, pressure: PressureLevels) {
-        guard connected, active else { return }
-        pitch.append(Double(pressure.pitch))
-        mute.append(Double(pressure.mute))
-        if pitch.count > capacity {
-            pitch.removeFirst(pitch.count - capacity)
-            mute.removeFirst(mute.count - capacity)
-        }
-        levels = [peak.inCenter, peak.inEdge, peak.outL, peak.outR].map {
-            Swift.min(Double($0), levelMax)
-        }
+    func update(inCenter: Int, inEdge: Int) {
+        guard connected else { return }
+        levels = [inCenter, inEdge].map { Swift.min(Double($0), levelMax) }
         needsDisplay = true
     }
 
-    private func clearTraces() {
-        pitch.removeAll()
-        mute.removeAll()
-        levels = [0, 0, 0, 0]
-    }
-
     private func updateTooltip() {
-        toolTip = !connected
-            ? "Live monitor (connect to an aFrame to start) — click to open the Monitor window"
-            : (active ? "Live monitor — click to open the Monitor window"
-                      : "Live monitor paused — click to open the Monitor window")
+        toolTip = connected
+            ? "Input level (Center / Edge) — click to open the Monitor window"
+            : "Input monitor (connect to an aFrame to start) — click to open the Monitor window"
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -181,58 +161,39 @@ final class MiniMonitorView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let b = bounds
-        let dimmed = !connected || !active
+        let alpha: CGFloat = connected ? 1 : 0.35
         effectiveAppearance.performAsCurrentDrawingAppearance {
             let bg = NSBezierPath(roundedRect: b, xRadius: 6, yRadius: 6)
             NSColor.controlBackgroundColor.setFill()
             bg.fill()
 
-            // Right block: four mini peak bars.
-            let barW: CGFloat = 5, barGap: CGFloat = 3
-            let barsW = barW * 4 + barGap * 3
-            let barArea = NSRect(x: b.maxX - barsW - 8, y: 5, width: barsW, height: b.height - 10)
-            for (i, v) in levels.enumerated() {
-                let track = NSRect(x: barArea.minX + CGFloat(i) * (barW + barGap),
-                                   y: barArea.minY, width: barW, height: barArea.height)
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+                .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(alpha),
+            ]
+            ("IN" as NSString).draw(at: NSPoint(x: 8, y: b.midY - 6), withAttributes: titleAttrs)
+
+            let rowAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(alpha),
+            ]
+            let barX: CGFloat = 36
+            let barW = b.width - barX - 8
+            let rows: [(String, Double, CGFloat)] = [("C", levels[0], b.midY + 2.5),
+                                                     ("E", levels[1], b.midY - 8.5)]
+            for (label, v, y) in rows {
+                (label as NSString).draw(at: NSPoint(x: barX - 10, y: y - 1), withAttributes: rowAttrs)
+                let track = NSRect(x: barX, y: y, width: barW, height: 5)
                 NSColor.separatorColor.withAlphaComponent(0.4).setFill()
-                NSBezierPath(roundedRect: track, xRadius: 2, yRadius: 2).fill()
+                NSBezierPath(roundedRect: track, xRadius: 2.5, yRadius: 2.5).fill()
                 let frac = CGFloat(v / levelMax)
                 if frac > 0 {
                     let fill = NSRect(x: track.minX, y: track.minY,
-                                      width: track.width, height: track.height * frac)
+                                      width: track.width * frac, height: track.height)
                     (frac > 0.85 ? NSColor.systemRed
                         : frac > 0.6 ? .systemYellow : .systemGreen)
-                        .withAlphaComponent(dimmed ? 0.3 : 1).setFill()
-                    NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
-                }
-            }
-
-            // Left block: the pressure sparkline.
-            let plot = NSRect(x: 6, y: 5, width: barArea.minX - 14, height: b.height - 10)
-            for (samples, color) in [(pitch, NSColor.systemBlue), (mute, .systemPurple)]
-            where samples.count > 1 {
-                let path = NSBezierPath()
-                path.lineWidth = 1.2
-                let stepX = plot.width / CGFloat(capacity - 1)
-                let start = capacity - samples.count
-                for (i, s) in samples.enumerated() {
-                    let x = plot.minX + CGFloat(start + i) * stepX
-                    let y = plot.minY + Swift.min(CGFloat(s / pressureMax), 1) * plot.height
-                    let pt = NSPoint(x: x, y: y)
-                    i == 0 ? path.move(to: pt) : path.line(to: pt)
-                }
-                color.withAlphaComponent(dimmed ? 0.3 : 0.9).setStroke()
-                path.stroke()
-            }
-
-            // Disconnected: a slashed waveform over the (flat) sparkline. The
-            // paused state stays plain — the play/pause button beside the view
-            // already shows it.
-            if !connected {
-                if let image = NSImage(systemSymbolName: "waveform.slash", accessibilityDescription: nil)?
-                    .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold)) {
-                    let tinted = image.tinted(with: .tertiaryLabelColor)
-                    tinted.draw(in: NSRect(x: plot.midX - 6, y: plot.midY - 6, width: 12, height: 12))
+                        .withAlphaComponent(alpha).setFill()
+                    NSBezierPath(roundedRect: fill, xRadius: 2.5, yRadius: 2.5).fill()
                 }
             }
 
@@ -240,18 +201,6 @@ final class MiniMonitorView: NSView {
             bg.lineWidth = 1
             bg.stroke()
         }
-    }
-}
-
-private extension NSImage {
-    func tinted(with color: NSColor) -> NSImage {
-        let image = NSImage(size: size, flipped: false) { rect in
-            color.set()
-            rect.fill()
-            self.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1)
-            return true
-        }
-        return image
     }
 }
 

@@ -12,11 +12,10 @@ final class GroupNavView: NSView {
     /// Requests switching the editor between the instrument and effect views.
     var onDomainChange: ((ToneSelect) -> Void)?
 
-    /// The compact live monitor and its pause/resume button, filling the
+    /// The compact input monitor (Center/Edge peaks), filling the
     /// otherwise-empty stretch between the tone navigator and the view
-    /// switcher. The main window controller wires and drives both.
-    let miniMonitor = MiniMonitorView()
-    let monitorPauseButton = NSButton()
+    /// switcher. The main window controller wires and drives it.
+    let inputMonitor = InputMonitorView()
 
     private let groupPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let prevButton = GroupNavView.arrowButton("chevron.left", "Previous tone")
@@ -76,31 +75,18 @@ final class GroupNavView: NSView {
         stack.setCustomSpacing(14, after: groupPopup)
         stack.setCustomSpacing(2, after: prevButton)
         stack.setCustomSpacing(2, after: numberField)
-        monitorPauseButton.bezelStyle = .rounded
-        monitorPauseButton.isBordered = false
-        monitorPauseButton.imagePosition = .imageOnly
-        monitorPauseButton.image = NSImage(systemSymbolName: "pause.fill",
-                                           accessibilityDescription: "Pause live monitor")?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
-        monitorPauseButton.contentTintColor = Palette.controlGlyph
-
-        let monitorCluster = NSStackView(views: [monitorPauseButton, miniMonitor])
-        monitorCluster.orientation = .horizontal
-        monitorCluster.alignment = .centerY
-        monitorCluster.spacing = 5
-
         stack.translatesAutoresizingMaskIntoConstraints = false
         domainSegmented.translatesAutoresizingMaskIntoConstraints = false
-        monitorCluster.translatesAutoresizingMaskIntoConstraints = false
+        inputMonitor.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
-        addSubview(monitorCluster)
+        addSubview(inputMonitor)
         addSubview(domainSegmented)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            monitorCluster.leadingAnchor.constraint(greaterThanOrEqualTo: stack.trailingAnchor, constant: 16),
-            monitorCluster.trailingAnchor.constraint(equalTo: domainSegmented.leadingAnchor, constant: -16),
-            monitorCluster.centerYAnchor.constraint(equalTo: centerYAnchor),
+            inputMonitor.leadingAnchor.constraint(greaterThanOrEqualTo: stack.trailingAnchor, constant: 16),
+            inputMonitor.trailingAnchor.constraint(equalTo: domainSegmented.leadingAnchor, constant: -16),
+            inputMonitor.centerYAnchor.constraint(equalTo: centerYAnchor),
             domainSegmented.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
             domainSegmented.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])

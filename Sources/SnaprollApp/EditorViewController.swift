@@ -34,6 +34,17 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     private let saveButton = NSButton()
     private let headerDivider = NSBox()
     private let columnsStack = NSStackView()
+    /// The scrolling content column: empty label, parameter columns, and (for
+    /// instruments) the mixer console band appended during rebuild.
+    private let contentStack = NSStackView()
+
+    // The mixer console band and the live views embedded in the layout: the
+    // Pressure card's pitch/mute traces and the Master strip's output meters.
+    // All are rebuilt with the cards and fed by `updateMeters`.
+    private var consoleCard: NSView?
+    private var pitchChart: StripChartView?
+    private var muteChart: StripChartView?
+    private var masterMeters: StripMeterPairView?
     #if DEBUG
     private let emptyLabel = NSTextField(labelWithString: "Connect to an aFrame (or the mock device) to start editing")
     #else
@@ -147,10 +158,13 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         emptyLabel.font = .systemFont(ofSize: 14)
 
         // Scrolling parameter area (the header is no longer part of it).
-        let outer = NSStackView(views: [emptyLabel, columnsStack])
+        let outer = contentStack
+        outer.addArrangedSubview(emptyLabel)
+        outer.addArrangedSubview(columnsStack)
         outer.orientation = .vertical
         outer.alignment = .leading
         outer.spacing = 16
+        outer.setCustomSpacing(14, after: columnsStack)
         outer.edgeInsets = NSEdgeInsets(top: 16, left: 24, bottom: 24, right: 24)
         outer.translatesAutoresizingMaskIntoConstraints = false
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -394,6 +408,11 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         rowViews = [:]
         compCurveView = nil
         compIndices = [:]
+        pitchChart = nil
+        muteChart = nil
+        masterMeters = nil
+        consoleCard?.removeFromSuperview()
+        consoleCard = nil
         columnsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         guard let tone = tones[domain] else {
@@ -433,78 +452,100 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             sections[d.section, default: []].append(d)
         }
 
-        // Instruments model the original editor's physical-mixer layout: the
-        // Mixer section's channel params (pan + level/send) render as a strip
-        // at the bottom of their timbre section's card rather than as a card
-        // of their own, and Master's level becomes a fader. (ParameterMap
-        // sections are untouched — this is purely a UI regrouping, so the
-        // randomization rules keyed on manual sections still hold.)
-        var strips = [String: [ParameterDescriptor]]()
+        // Instruments model the original editor's physical-mixer layout: every
+        // Mixer/Master channel param (pans + level/send faders) leaves the
+        // cards for one full-width six-strip console band below the columns.
+        // (ParameterMap sections are untouched — this is purely a UI
+        // regrouping, so the randomization rules keyed on manual sections
+        // still hold.)
+        var consoleParams: [ParameterDescriptor] = []
         if domain == .instrument {
-            let hosts = ["MixMain": "Main", "MixSub": "Sub", "MixXtra": "Xtra", "MixDry": "Dry"]
-            for d in sections["Mixer"] ?? [] {
-                let host = hosts.first { d.name.hasPrefix($0.key) }?.value ?? "Mixer"
-                strips[host, default: []].append(d)
-            }
-            if strips["Mixer"] == nil {  // every param found a host card
-                sections["Mixer"] = nil
-                sectionOrder.removeAll { $0 == "Mixer" }
-            }
-            if let master = sections["Master"] {
-                strips["Master"] = master
-                sections["Master"] = []
-            }
-        }
-        func stripWeight(_ section: String) -> Int {
-            guard let strip = strips[section], !strip.isEmpty else { return 0 }
-            let panRows = strip.filter { !Self.isFaderParam($0) }.count
-            return panRows + 6  // the fader block is roughly six rows tall
+            consoleParams = (sections["Mixer"] ?? []) + (sections["Master"] ?? [])
+            sections["Mixer"] = nil
+            sections["Master"] = nil
+            sectionOrder.removeAll { $0 == "Mixer" || $0 == "Master" }
         }
 
-        // Flow section cards into columns sequentially, balancing row-height
-        // weights (a card's rows + header + its mixer strip, if any).
+        // A card's approximate height in row units, for balancing and for the
+        // proportional stretch below (rows + header, plus embedded extras).
         func weight(_ section: String) -> Int {
-            (sections[section]?.count ?? 0) + 2 + stripWeight(section)
-        }
-        let totalWeight = sectionOrder.reduce(0) { $0 + weight($1) }
-        let columnCount = descriptors.count > 44 ? 3 : 2
-        let targetRows = (totalWeight + columnCount - 1) / columnCount
-        var columns: [[NSView]] = [[]]
-        var rowsInColumn = 0
-        for section in sectionOrder {
-            let params = sections[section]!
-            if rowsInColumn > 0, rowsInColumn + weight(section) / 2 > targetRows,
-               columns.count < columnCount {
-                columns.append([])
-                rowsInColumn = 0
-            }
-            columns[columns.count - 1].append(makeCard(section: section, params: params,
-                                                       strip: strips[section] ?? [], tone: tone))
-            rowsInColumn += weight(section)
+            var w = (sections[section]?.count ?? 0) + 2
+            if domain == .instrument, section == "Pressure" { w += 6 }  // live graphs
+            if domain == .effect, section == "Comp" { w += 7 }          // curve plot
+            return w
         }
 
-        for column in columns {
-            let stack = NSStackView(views: column)
+        // Instruments always have the same six sections, so their column plan
+        // is fixed (matching the console-grid design); effects vary by
+        // algorithm and flow sequentially into weight-balanced columns.
+        var columnPlan: [[String]]
+        if domain == .instrument {
+            let plan = [["Main", "Dry"], ["Xtra"], ["Sub", "Pressure"]]
+            columnPlan = plan.map { $0.filter { sections[$0] != nil } }.filter { !$0.isEmpty }
+            let planned = Set(plan.flatMap { $0 })
+            let extras = sectionOrder.filter { !planned.contains($0) }
+            if !extras.isEmpty { columnPlan.append(extras) }
+        } else {
+            let totalWeight = sectionOrder.reduce(0) { $0 + weight($1) }
+            let columnCount = descriptors.count > 44 ? 3 : 2
+            let targetRows = (totalWeight + columnCount - 1) / columnCount
+            columnPlan = [[]]
+            var rowsInColumn = 0
+            for section in sectionOrder {
+                if rowsInColumn > 0, rowsInColumn + weight(section) / 2 > targetRows,
+                   columnPlan.count < columnCount {
+                    columnPlan.append([])
+                    rowsInColumn = 0
+                }
+                columnPlan[columnPlan.count - 1].append(section)
+                rowsInColumn += weight(section)
+            }
+        }
+
+        for columnSections in columnPlan {
+            let cards = columnSections.map {
+                makeCard(section: $0, params: sections[$0]!, tone: tone)
+            }
+            let stack = NSStackView(views: cards)
             stack.orientation = .vertical
             stack.alignment = .leading
             stack.spacing = 14
-            stack.setHuggingPriority(.defaultHigh, for: .vertical)
-            for card in column {
+            for card in cards {
                 card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
             }
-            // Columns differ in height, and a card has no intrinsic height of
-            // its own (its inner stack is pinned to both card edges). Whatever
-            // vertical slack a column is given would otherwise be absorbed by
-            // an arbitrary card, padding it out or — before its header learned
-            // to hug — pushing its rows out of view. This spacer hugs far more
-            // weakly than any card, so it soaks up the slack instead.
-            let spacer = NSView()
-            spacer.setContentHuggingPriority(.init(1), for: .vertical)
-            stack.addArrangedSubview(spacer)
             columnsStack.addArrangedSubview(stack)
+            // Every column fills the row height (set by the tallest column's
+            // natural size), so all columns end on one line. The slack goes to
+            // the cards in proportion to their content — the low-priority
+            // multiplier constraints below steer it — and inside each card the
+            // rows stack (.equalSpacing) turns it into breathing room.
+            stack.heightAnchor.constraint(equalTo: columnsStack.heightAnchor).isActive = true
+            let columnWeight = columnSections.reduce(0) { $0 + weight($1) }
+            for (card, section) in zip(cards, columnSections) where columnWeight > 0 {
+                let share = card.heightAnchor.constraint(
+                    equalTo: stack.heightAnchor,
+                    multiplier: CGFloat(weight(section)) / CGFloat(columnWeight))
+                share.priority = .init(400)
+                share.isActive = true
+            }
+        }
+
+        if !consoleParams.isEmpty {
+            let console = makeConsole(consoleParams, tone: tone)
+            contentStack.addArrangedSubview(console)
+            console.widthAnchor.constraint(equalTo: columnsStack.widthAnchor).isActive = true
+            consoleCard = console
         }
 
         updateCompCurve()
+    }
+
+    /// Feeds the live meter sample into whatever monitoring views the current
+    /// layout carries (pressure traces, master output meters).
+    func updateMeters(peak: PeakLevels, pressure: PressureLevels) {
+        pitchChart?.append(Double(pressure.pitch))
+        muteChart?.append(Double(pressure.mute))
+        masterMeters?.update(l: peak.outL, r: peak.outR)
     }
 
     private func makeRow(_ d: ParameterDescriptor, tone: ToneData) -> ParameterRowView {
@@ -539,55 +580,134 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
         return row
     }
 
-    /// Whether a mixer param renders as a vertical fader (levels/sends) rather
-    /// than a pan row.
-    private static func isFaderParam(_ d: ParameterDescriptor) -> Bool {
-        if case .levelWithMode = d.display { return true }
-        return d.name.hasSuffix("Lev")  // MixMasterLev is a plain 0–127 level
+    // MARK: Mixer console
+
+    /// The console strips in signal order. `key` matches the parameter-name
+    /// stem after "Mix" (spaces removed, so "MixSub Pan" lands on SUB).
+    private static let stripOrder: [(key: String, title: String)] = [
+        ("Main", "MAIN"), ("Sub", "SUB"), ("Xtra", "XTRA"),
+        ("DryC", "DRY C"), ("DryE", "DRY E"), ("Master", "MASTER"),
+    ]
+
+    private static func stripKey(for name: String) -> String? {
+        let stem = name.hasPrefix("Mix") ? String(name.dropFirst(3)).replacingOccurrences(of: " ", with: "") : name
+        // Longest match first so "DryC" isn't claimed by a shorter key.
+        return stripOrder.map(\.key).sorted { $0.count > $1.count }
+            .first { stem.hasPrefix($0) }
     }
 
-    /// Strip-local fader title: "MixMainLev" → "Lev", "MixDryCSnd" → "C Snd".
-    private static func faderTitle(_ name: String) -> String {
-        let kind = name.hasSuffix("Snd") ? "Snd" : "Lev"
-        if name.hasPrefix("MixDryC") { return "C \(kind)" }
-        if name.hasPrefix("MixDryE") { return "E \(kind)" }
-        return kind
-    }
-
-    /// The channel-strip views appended to a card: pan rows, then the
-    /// level/send faders side by side — a card-width mixer strip.
-    private func makeMixerStrip(_ strip: [ParameterDescriptor], tone: ToneData) -> [NSView] {
-        var views: [NSView] = []
-        for d in strip where !Self.isFaderParam(d) {
-            views.append(makeRow(d, tone: tone))
+    /// The full-width mixer console band: one channel strip per timbre
+    /// (Main / Sub / Xtra / Dry C / Dry E / Master), each with its pan control
+    /// over its Lev/Snd faders; Master also carries the live L/R output meters.
+    private func makeConsole(_ params: [ParameterDescriptor], tone: ToneData) -> NSView {
+        var grouped = [String: [ParameterDescriptor]]()
+        for d in params {
+            grouped[Self.stripKey(for: d.name) ?? "Master", default: []].append(d)
         }
-        let faders = strip.filter(Self.isFaderParam)
-            .map { d -> VerticalFaderView in
+
+        let strips = Self.stripOrder.compactMap { key, title -> NSView? in
+            guard let stripParams = grouped[key] else { return nil }
+            return makeStrip(title: title, params: stripParams,
+                             withMeters: key == "Master", tone: tone)
+        }
+
+        let title = NSTextField(labelWithString: "MIXER")
+        title.font = .systemFont(ofSize: 11, weight: .semibold)
+        title.textColor = Palette.sectionTitle
+
+        let stripsRow = NSStackView(views: strips)
+        stripsRow.orientation = .horizontal
+        stripsRow.alignment = .top
+        stripsRow.distribution = .fillEqually
+        stripsRow.spacing = 8
+
+        let inner = NSStackView(views: [title, stripsRow])
+        inner.orientation = .vertical
+        inner.alignment = .leading
+        inner.spacing = 8
+        inner.translatesAutoresizingMaskIntoConstraints = false
+        stripsRow.widthAnchor.constraint(equalTo: inner.widthAnchor).isActive = true
+
+        let card = CardView()
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(inner)
+        NSLayoutConstraint.activate([
+            inner.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            inner.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
+            inner.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            inner.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+        ])
+        return card
+    }
+
+    /// One console channel strip: centered title, pan control(s), then the
+    /// vertical faders (and, for Master, the L/R output meters) side by side.
+    private func makeStrip(title: String, params: [ParameterDescriptor],
+                           withMeters: Bool, tone: ToneData) -> NSView {
+        func isPan(_ d: ParameterDescriptor) -> Bool {
+            d.name.hasSuffix("Pan") || d.name.hasSuffix("Bal")
+        }
+        func wire(_ d: ParameterDescriptor) -> (Int) -> Void {
+            { [weak self] value in
+                guard let self else { return }
+                self.tones[self.domain]?.values[d.index] = value
+                self.onParamChange?(self.domain, d.index, value)
+            }
+        }
+
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = .systemFont(ofSize: 10, weight: .bold)
+        titleLabel.textColor = Palette.sectionTitle
+        titleLabel.alignment = .center
+
+        var views: [NSView] = [titleLabel]
+
+        for d in params where isPan(d) {
+            let pan = CompactPanView(descriptor: d,
+                                     value: d.index < tone.values.count ? tone.values[d.index] : 64)
+            pan.onChange = wire(d)
+            views.append(pan)
+        }
+
+        var faderViews: [NSView] = params.filter { !isPan($0) }
+            .sorted { !$0.name.hasSuffix("Snd") && $1.name.hasSuffix("Snd") }  // Lev before Snd
+            .map { d in
                 let fader = VerticalFaderView(
-                    title: Self.faderTitle(d.name),
+                    title: d.name.hasSuffix("Snd") ? "Snd" : "Lev",
                     descriptor: d,
                     range: ParameterMap.range(for: domain, algoNum: tone.algoNum, index: d.index),
                     value: d.index < tone.values.count ? tone.values[d.index] : 0)
-                fader.onChange = { [weak self] value in
-                    guard let self else { return }
-                    self.tones[self.domain]?.values[d.index] = value
-                    self.onParamChange?(self.domain, d.index, value)
-                }
+                fader.onChange = wire(d)
                 return fader
             }
-            .sorted { Self.faderTitle($0.descriptor.name) < Self.faderTitle($1.descriptor.name) }
-        if !faders.isEmpty {
-            let row = NSStackView(views: faders)
+        if withMeters {
+            let meters = StripMeterPairView()
+            masterMeters = meters
+            faderViews.append(meters)
+        }
+        if !faderViews.isEmpty {
+            let row = NSStackView(views: faderViews)
             row.orientation = .horizontal
             row.alignment = .top
             row.distribution = .fillEqually
             views.append(row)
         }
-        return views
+
+        let strip = NSStackView(views: views)
+        strip.orientation = .vertical
+        strip.alignment = .centerX
+        strip.spacing = 6
+        // Keep the strip's content clustered at the top: without this, a strip
+        // stretched to match a taller neighbor lets its rows drift downward.
+        strip.setHuggingPriority(.required, for: .vertical)
+        for v in views.dropFirst() {  // pan rows + fader row fill the strip
+            v.widthAnchor.constraint(equalTo: strip.widthAnchor).isActive = true
+        }
+        return strip
     }
 
     private func makeCard(section: String, params: [ParameterDescriptor],
-                          strip: [ParameterDescriptor] = [], tone: ToneData) -> NSView {
+                          tone: ToneData) -> NSView {
         let title = NSTextField(labelWithString: section.uppercased())
         title.font = .systemFont(ofSize: 11, weight: .semibold)
         title.textColor = Palette.sectionTitle
@@ -635,27 +755,27 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             views.append(makeRow(d, tone: tone))
         }
 
-        if !strip.isEmpty {
-            // A separator + MIXER caption set the strip off from the timbre
-            // rows above it (skipped when the whole card IS the strip, like
-            // Master's).
-            if !params.isEmpty {
-                let divider = NSBox()
-                divider.boxType = .separator
-                views.append(divider)
-                let caption = NSTextField(labelWithString: "MIXER")
-                caption.font = .systemFont(ofSize: 10, weight: .semibold)
-                caption.textColor = Palette.sectionTitle
-                views.append(caption)
-            }
-            views += makeMixerStrip(strip, tone: tone)
+        // The Pressure card hosts the live pitch/mute traces (relocated from
+        // the retired header mini monitor), putting the playing feedback right
+        // next to the parameters that shape it.
+        if domain == .instrument, section == "Pressure" {
+            let pitch = StripChartView(title: "Pitch", color: .systemBlue)
+            pitch.heightAnchor.constraint(equalToConstant: 66).isActive = true
+            let mute = StripChartView(title: "Mute", color: .systemPurple)
+            mute.heightAnchor.constraint(equalToConstant: 66).isActive = true
+            pitchChart = pitch
+            muteChart = mute
+            views += [pitch, mute]
         }
 
         let inner = NSStackView(views: views)
         inner.orientation = .vertical
         inner.alignment = .leading
+        // Rows keep their fixed heights; when the column equalization gives
+        // the card extra height, equal spacing turns it into breathing room
+        // between rows instead of a dead patch at the bottom.
+        inner.distribution = .equalSpacing
         inner.spacing = 2
-        inner.setCustomSpacing(8, after: header)
         inner.translatesAutoresizingMaskIntoConstraints = false
 
         let card = CardView()

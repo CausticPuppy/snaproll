@@ -24,12 +24,6 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
     private let randomizeButton = NSButton(
         image: NSImage(systemSymbolName: "die.face.5", accessibilityDescription: "Randomize")!,
         target: nil, action: nil)
-    /// Whether the header's compact monitor is running (persisted). The
-    /// session polls while this is on or the Monitor window is open.
-    private var miniMonitorActive = UserDefaults.standard.object(forKey: "MiniMonitorActive")
-        .flatMap { $0 as? Bool } ?? true
-    private var miniMonitor: MiniMonitorView { groupNav.miniMonitor }
-
     private let randomizePopover = NSPopover()
     private let randomizeVC = RandomizePopoverViewController()
 
@@ -303,10 +297,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
             self?.saveCurrentTone()
         }
 
-        miniMonitor.onOpen = { [weak self] in self?.showMonitor(nil) }
-        groupNav.monitorPauseButton.target = self
-        groupNav.monitorPauseButton.action = #selector(toggleMiniMonitor)
-        refreshMiniMonitorUI()
+        groupNav.inputMonitor.onOpen = { [weak self] in self?.showMonitor(nil) }
 
         session.onEvent = { [weak self] event in
             guard let self else { return }
@@ -320,7 +311,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.connectButton.isEnabled = true
                 self.randomizeButton.isEnabled = true
                 self.groupNav.update(from: group)
-                self.refreshMiniMonitorUI()
+                self.groupNav.inputMonitor.setConnected(true)
                 self.updateMonitoringDemand()
                 if self.groupEditorWC?.window?.isVisible == true {
                     self.session.loadGroups()
@@ -335,7 +326,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.randomizeButton.isEnabled = false
                 self.randomizePopover.close()
                 self.editorVC.clear()
-                self.refreshMiniMonitorUI()
+                self.groupNav.inputMonitor.setConnected(false)
                 self.monitorWC?.setIdle("Not connected")
                 self.groupEditorWC?.setIdle()
                 self.toneCopyWC?.setConnected(false)
@@ -348,7 +339,8 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
                 self.editorVC.showTone(tone, num: num, for: sel)
             case .meters(let peak, let pressure):
                 self.monitorWC?.update(peak: peak, pressure: pressure)
-                self.miniMonitor.update(peak: peak, pressure: pressure)
+                self.groupNav.inputMonitor.update(inCenter: peak.inCenter, inEdge: peak.inEdge)
+                self.editorVC.updateMeters(peak: peak, pressure: pressure)
             case .groups(let list, let current):
                 self.groupEditorWC?.update(lists: list, current: current)
                 self.groupNav.update(from: current)
@@ -434,47 +426,19 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
 
     @objc func showMonitor(_ sender: Any?) {
         if monitorWC == nil {
-            let wc = MonitorWindowController()
-            // Deferred: windowWillClose fires while the window still reports
-            // visible, which would keep the poll loop alive.
-            wc.onClose = { [weak self] in
-                DispatchQueue.main.async { self?.updateMonitoringDemand() }
-            }
-            monitorWC = wc
+            monitorWC = MonitorWindowController()
         }
         monitorWC?.showWindow(nil)
-        if session.isConnected {
-            updateMonitoringDemand()
-        } else {
+        if !session.isConnected {
             monitorWC?.setIdle("Waiting for connection…")
         }
     }
 
-    /// The toolbar's compact monitor and the Monitor window share one poll
-    /// loop: run it while either wants samples, stop it when neither does.
+    /// Live meters are embedded throughout the layout (header input bars,
+    /// pressure traces, master output meters), so the poll loop simply runs
+    /// whenever a device is connected.
     private func updateMonitoringDemand() {
-        let wanted = session.isConnected
-            && (miniMonitorActive || monitorWC?.window?.isVisible == true)
-        wanted ? session.startMonitoring() : session.stopMonitoring()
-    }
-
-    @objc private func toggleMiniMonitor() {
-        miniMonitorActive.toggle()
-        UserDefaults.standard.set(miniMonitorActive, forKey: "MiniMonitorActive")
-        refreshMiniMonitorUI()
-        updateMonitoringDemand()
-    }
-
-    /// Syncs the compact monitor and its pause/resume button to the current
-    /// connection + active state.
-    private func refreshMiniMonitorUI() {
-        miniMonitor.setState(connected: session.isConnected, active: miniMonitorActive)
-        let button = groupNav.monitorPauseButton
-        let symbol = miniMonitorActive ? "pause.fill" : "play.fill"
-        let description = miniMonitorActive ? "Pause live monitor" : "Resume live monitor"
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
-        button.toolTip = description
+        session.isConnected ? session.startMonitoring() : session.stopMonitoring()
     }
 
     @objc private func showRandomize() {
