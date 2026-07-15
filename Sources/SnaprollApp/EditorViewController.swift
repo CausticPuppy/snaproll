@@ -12,6 +12,9 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
     var onSelectTone: ((ToneSelect, Int) -> Void)?
     /// Requests saving the current tone to its project slot (header Save, ⌘S).
     var onSave: (() -> Void)?
+    /// Requests opening the full Monitor window (clicking an embedded meter —
+    /// the pressure traces or the Master output meters).
+    var onOpenMonitor: (() -> Void)?
 
     /// The group/tone navigator, embedded in the fixed header row. Owned here
     /// for layout; the main window controller wires its callbacks and state.
@@ -682,6 +685,7 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             }
         if withMeters {
             let meters = StripMeterPairView()
+            meters.onOpen = { [weak self] in self?.onOpenMonitor?() }
             masterMeters = meters
             faderViews.append(meters)
         }
@@ -763,6 +767,8 @@ final class EditorViewController: NSViewController, NSTextFieldDelegate {
             pitch.heightAnchor.constraint(equalToConstant: 66).isActive = true
             let mute = StripChartView(title: "Mute", color: .systemPurple)
             mute.heightAnchor.constraint(equalToConstant: 66).isActive = true
+            pitch.onOpen = { [weak self] in self?.onOpenMonitor?() }
+            mute.onOpen = { [weak self] in self?.onOpenMonitor?() }
             pitchChart = pitch
             muteChart = mute
             views += [pitch, mute]

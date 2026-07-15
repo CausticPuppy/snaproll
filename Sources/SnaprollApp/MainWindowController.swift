@@ -298,6 +298,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSMenuI
         }
 
         groupNav.inputMonitor.onOpen = { [weak self] in self?.showMonitor(nil) }
+        editorVC.onOpenMonitor = { [weak self] in self?.showMonitor(nil) }
 
         session.onEvent = { [weak self] event in
             guard let self else { return }

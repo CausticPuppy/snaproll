@@ -184,6 +184,9 @@ final class CompactPanView: NSView {
 /// bar block sized like the slider, caption below) so they sit flush beside
 /// the Lev fader.
 final class StripMeterPairView: NSView {
+    /// Fired on click; the owner opens the full Monitor window.
+    var onOpen: (() -> Void)?
+
     private let bars = MeterBarsView()
 
     init() {
@@ -220,6 +223,14 @@ final class StripMeterPairView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    override func mouseDown(with event: NSEvent) {
+        if let onOpen { onOpen() } else { super.mouseDown(with: event) }
+    }
+
+    override func resetCursorRects() {
+        if onOpen != nil { addCursorRect(bounds, cursor: .pointingHand) }
+    }
 
     func update(l: Int, r: Int) { bars.setValues(l: l, r: r) }
     func clear() { bars.setValues(l: 0, r: 0) }

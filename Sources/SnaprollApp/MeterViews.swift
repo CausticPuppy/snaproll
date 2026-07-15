@@ -6,6 +6,11 @@ import AFrameKit
 /// value seen (rounded up to a nice step) so the trace never rescales downward
 /// jarringly. Current value is printed in the corner.
 final class StripChartView: NSView {
+    /// When set, clicking the chart fires this (the embedded editor charts open
+    /// the full Monitor window). Left nil in the Monitor window itself, where a
+    /// click has nowhere to go — and the pointing-hand cursor stays off.
+    var onOpen: (() -> Void)?
+
     private let title: String
     private let traceColor: NSColor
     private let capacity: Int
@@ -26,6 +31,14 @@ final class StripChartView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: 110)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if let onOpen { onOpen() } else { super.mouseDown(with: event) }
+    }
+
+    override func resetCursorRects() {
+        if onOpen != nil { addCursorRect(bounds, cursor: .pointingHand) }
     }
 
     func append(_ value: Double) {
