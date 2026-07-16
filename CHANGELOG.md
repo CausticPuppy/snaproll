@@ -6,6 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-15
+
+A layout revamp that reorganizes the editor into a "console grid" and moves
+live monitoring inline, along the signal path.
+
+### Changed
+
+- Editor layout revamp: every mixer and master channel control now lives in a
+  single full-width mixer console band (Main / Sub / Xtra / Dry C / Dry E /
+  Master) below the parameter columns, modeling a physical mixing panel. The
+  parameter columns above are equalized to share one flat bottom edge instead
+  of ending at ragged heights.
+- Monitoring is distributed along the signal path rather than a single header
+  widget: input peak meters (Center / Edge) in the header, live pressure
+  pitch/mute traces in the Pressure card, and L/R output meters in the Master
+  strip. Clicking any of these — or the header input meter — opens the full
+  Monitor window.
+- Narrower mixer pan sliders so each value readout clearly pairs with its
+  slider.
+
+### Fixed
+
+- Release builds no longer offer the development-only mock device; when no
+  serial port is found they show "No device detected" and disable Connect.
+
 ## [0.1.1] - 2026-07-13
 
 ### Fixed
@@ -59,6 +84,7 @@ against real VER.2.00 hardware.
   byte in LZ plaintext. The encoder uses a safe fallback, and a wrong guess is
   rejected by the device's project checksum, so it cannot corrupt anything.
 
-[Unreleased]: https://github.com/CausticPuppy/snaproll/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/CausticPuppy/snaproll/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/CausticPuppy/snaproll/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/CausticPuppy/snaproll/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CausticPuppy/snaproll/releases/tag/v0.1.0

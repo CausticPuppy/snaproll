@@ -22,7 +22,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.0}"
 BUILD="${BUILD:-1}"
 
 BUILD_FLAGS="-c release"
