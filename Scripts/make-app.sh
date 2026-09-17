@@ -25,7 +25,14 @@ cd "$(dirname "$0")/.."
 VERSION="${VERSION:-0.2.0}"
 BUILD="${BUILD:-1}"
 
-BUILD_FLAGS="-c release"
+# Keep in sync with `platforms:` in Package.swift.
+MIN_MACOS="13.0"
+
+# Stamp the real SDK version into the binary. Xcode 27's default SwiftPM build
+# engine (swiftbuild) otherwise records the deployment target (13.0) as the SDK
+# version, and AppKit gates newer behaviors and styling on that linked-SDK stamp.
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+BUILD_FLAGS="-c release -Xlinker -platform_version -Xlinker macos -Xlinker $MIN_MACOS -Xlinker $SDK_VERSION"
 if [ "$UNIVERSAL" = "1" ]; then
     BUILD_FLAGS="$BUILD_FLAGS --arch arm64 --arch x86_64"
 fi
@@ -71,7 +78,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD}</string>
-    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>LSMinimumSystemVersion</key><string>${MIN_MACOS}</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict>
