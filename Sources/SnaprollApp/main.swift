@@ -108,7 +108,8 @@ func applyAppIcon(to app: NSApplication) {
     let roots = [Bundle.main.resourceURL, Bundle.main.bundleURL].compactMap { $0 }
     let relativePaths = [
         "AppIcon.icns",                            // packaged .app (Contents/Resources)
-        "Snaproll_SnaprollApp.bundle/AppIcon.png", // swift run + packaged fallback
+        "Snaproll_SnaprollApp.bundle/Contents/Resources/AppIcon.png", // swift run, Xcode 27+ (swiftbuild)
+        "Snaproll_SnaprollApp.bundle/AppIcon.png", // swift run, older toolchains + packaged fallback
     ]
     for root in roots {
         for path in relativePaths {
